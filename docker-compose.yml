@@ -1,0 +1,48 @@
+services:
+  llama-server:
+    image: ghcr.io/ggml-org/llama.cpp:server-cuda
+    container_name: llama-server
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./models:/models
+      - ./templates:/templates
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
+    command: >
+      --model /models/Qwen3.6-35B-A3B-MTP-UD-Q4_K_XL.gguf
+      --host 0.0.0.0
+      --port 8080
+      --ctx-size 16384
+      --parallel 1
+      --flash-attn 1
+      --no-mmap
+      --threads 8
+      --spec-type draft-mtp
+      --spec-draft-n-max 2
+      --n-predict 8192
+      --jinja
+      --chat-template-file /templates/chat_template.jinja
+      -fitt 512
+      --cache-reuse 256
+
+  ki-extractor:
+    build: .
+    container_name: ki-extractor
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      - LLAMA_URL=http://llama-server:8080
+      - CUDA_VISIBLE_DEVICES=
+      - TOKENIZERS_PARALLELISM=false
+    depends_on:
+      - llama-server
+    restart: unless-stopped
