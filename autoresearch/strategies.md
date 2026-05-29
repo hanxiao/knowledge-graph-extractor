@@ -98,6 +98,21 @@ Decode is bandwidth-bound at a hardware ~33% efficiency (format-independent).
 Beyond this needs a quality tradeoff or a different engine (FP8 tensor cores +
 grammar jump-forward, e.g. SGLang/vLLM) -- out of scope for the llama.cpp+MTP repo.
 
+## Engine-pivot frontier: investigated, REJECTED (would regress)
+
+Scoped vLLM/SGLang + xgrammar jump-forward as the one remaining quality-safe
+lever. Conclusion: it would LOSE to the current setup on L4.
+- Jump-forward's "up to 5x" is under batched load (TPOT); single-stream gain is
+  only the fraction of grammar-forced JSON tokens (~1.2-1.6x, lossless).
+- Switching engines forfeits the trained MTP head (our biggest lever) and the
+  best available vLLM quant is AWQ/GPTQ 4-bit (~4.5bpw) vs our Q3 (3.5bpw) ->
+  more bandwidth.
+- Reported MoE decode: Qwen3.5-35B-A3B ~51 t/s (NVIDIA Spark), Qwen3-Next-80B-A3B
+  -AWQ ~40 t/s (RTX 6000, > L4). On an L4, vLLM base would likely be ~40-55 t/s;
+  even with jump-forward ~55-65 -- still BELOW our 75.9.
+So llama.cpp + Q3_K_XL + MTP is the practical optimum for this model on an L4.
+TERMINAL: +34% at zero quality loss; no quality-safe lever left that wins.
+
 ## WINNER (round 1, 5-repeat confirmed)
 
 **`--spec-draft-n-max 3 --spec-draft-p-min 0.1`**: decode **57.84 +- 0.59 t/s
