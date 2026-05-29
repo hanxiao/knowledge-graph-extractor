@@ -8,7 +8,9 @@ RUN pip install --no-cache-dir \
     httpx \
     numpy \
     sentence-transformers \
-    torch --index-url https://download.pytorch.org/whl/cpu
+    peft \
+    einops \
+    torch --extra-index-url https://download.pytorch.org/whl/cpu
 
 COPY app.py .
 
