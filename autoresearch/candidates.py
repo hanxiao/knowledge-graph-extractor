@@ -116,8 +116,48 @@ BATCH5 = [
     cfg("q2kxl_win",  "UD-Q2_K_XL @ win (~2.7bpw, aggressive)", model=Q2_K_XL, **WIN),
 ]
 
+# ----- Batch 6: re-tune MTP draft depth at the NEW Q3 base.
+# Win flags (n3,pmin0.1) were tuned on Q4. The Q3 target has different numerics
+# and cheaper bytes/token, so deeper drafting (n4/n5) might now pay off where it
+# didn't at Q4. Control = current winner. All on Q3_K_XL.
+BATCH6 = [
+    cfg("q3_n3_p01", "Q3 + n3 p-min0.1 (current winner, control)", model=Q3_K_XL, **{"--spec-draft-n-max": "3", "--spec-draft-p-min": "0.1"}),
+    cfg("q3_n4_p01", "Q3 + n4 p-min0.1", model=Q3_K_XL, **{"--spec-draft-n-max": "4", "--spec-draft-p-min": "0.1"}),
+    cfg("q3_n5_p01", "Q3 + n5 p-min0.1", model=Q3_K_XL, **{"--spec-draft-n-max": "5", "--spec-draft-p-min": "0.1"}),
+    cfg("q3_n3_p0",  "Q3 + n3 p-min0 (no gate)", model=Q3_K_XL, **{"--spec-draft-n-max": "3", "--spec-draft-p-min": "0.0"}),
+]
+
+# ----- Batch 7: model-free n-gram speculative decoding (vs MTP) at Q3.
+# Output is highly repetitive (8 schema keys x 15 facts) AND evidence_span is a
+# verbatim quote from the in-context doc -> n-gram lookup can draft whole spans
+# from the prompt at near-100% acceptance, at zero draft cost. Speculative
+# decoding is distribution-preserving (any draft source) -> quality-safe.
+# n-max raised to 8 to allow long copied runs.
+def ngcfg(id, desc, spec_type, **extra):
+    ov = {"--spec-type": spec_type, "--spec-draft-n-max": "8"}
+    ov.update(extra)
+    return cfg(id, desc, model=Q3_K_XL, **ov)
+BATCH7 = [
+    cfg("q3_mtp_ctrl", "Q3 + MTP n3 p0.1 (control)", model=Q3_K_XL, **{"--spec-draft-n-max": "3", "--spec-draft-p-min": "0.1"}),
+    ngcfg("q3_ngram_simple", "Q3 + ngram-simple draft (n-max 8)", "ngram-simple"),
+    ngcfg("q3_ngram_cache",  "Q3 + ngram-cache draft (n-max 8)", "ngram-cache"),
+    ngcfg("q3_ngram_mapk",   "Q3 + ngram-map-k draft (n-max 8)", "ngram-map-k"),
+]
+
+# ----- Batch 8: refine the 3.1-3.5bpw frontier. Q3_K_XL (3.5) preserves KIs;
+# IQ3_XXS (3.1, i-quant) lost ~32% of KIs. Probe the band between for a quant
+# that is faster than Q3_K_XL yet still preserves KI count. Q3_K_M is k-quant
+# (like the KI-preserving Q3_K_XL) but smaller; IQ3_S is a higher-bpw i-quant.
+Q3_K_M = "/models/Qwen3.6-35B-A3B-UD-Q3_K_M.gguf"   # ~3.3bpw, k-quant
+IQ3_S  = "/models/Qwen3.6-35B-A3B-UD-IQ3_S.gguf"    # ~3.44bpw, i-quant
+BATCH8 = [
+    cfg("q3km_win",  "UD-Q3_K_M @ win (~3.3bpw k-quant)", model=Q3_K_M, **WIN),
+    cfg("iq3s_win",  "UD-IQ3_S @ win (~3.44bpw i-quant)", model=IQ3_S, **WIN),
+]
+
 BATCHES = {"batch1": BATCH1, "batch2": BATCH2, "batch3": BATCH3,
-           "batch4": BATCH4, "batch5": BATCH5}
+           "batch4": BATCH4, "batch5": BATCH5, "batch6": BATCH6,
+           "batch7": BATCH7, "batch8": BATCH8}
 
 if __name__ == "__main__":
     name = sys.argv[1] if len(sys.argv) > 1 else "batch1"

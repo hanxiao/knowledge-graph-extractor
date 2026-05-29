@@ -43,6 +43,26 @@ it; groundedness is the guard that caught the degradation. IQ3_XXS (3.1bpw) is
 the speed-optimal quality-preserving point. Confirming with 5 repeats + manual
 fact spot-check vs Q4.
 
+## ROUND 2 cont. — levers tested at the Q3 base (no further gain)
+
+- **MTP depth re-tune at Q3 (batch6):** n3 still optimal (n3 75.3, n4 74.2,
+  n5 70.1 + quality drop); p-min 0 == 0.1 (~75.5). Same optimum as Q4 -> the
+  n3+p-min0.1 flags transfer across quants. No gain.
+- **Model-free n-gram speculative decoding (batch7): DEAD END.** Hypothesis was
+  that repetitive JSON + verbatim evidence_span (copyable from the in-context
+  doc) would give n-gram drafting near-100% acceptance. Reality: all variants
+  far SLOWER than MTP -- ngram-cache 50.0, ngram-simple 52.5, ngram-map-k 54.6
+  vs MTP 75.4. The trained MTP head (1 draft pass -> 3 good tokens) beats
+  model-free lookup (longer drafts, lower acceptance, + lookup overhead).
+  Quality fine throughout (cov 1.0), just no speed. (--spec-type also offers
+  draft-eagle3 / draft-simple, but those need external draft weights this model
+  doesn't ship.)
+
+**Converged optimum: Q3_K_XL + `--spec-draft-n-max 3 --spec-draft-p-min 0.1`
+= 75.9 t/s, +34% vs baseline, zero quality loss.** Open frontier still being
+probed: the 3.1-3.5bpw band (Q3_K_M, IQ3_S) for a possibly-faster k-quant that
+still preserves KI count.
+
 ## WINNER (round 1, 5-repeat confirmed)
 
 **`--spec-draft-n-max 3 --spec-draft-p-min 0.1`**: decode **57.84 +- 0.59 t/s
