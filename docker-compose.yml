@@ -25,7 +25,8 @@ services:
       --no-mmap
       --threads 8
       --spec-type draft-mtp
-      --spec-draft-n-max 2
+      --spec-draft-n-max 3
+      --spec-draft-p-min 0.1
       --n-predict 8192
       --jinja
       --chat-template-file /templates/chat_template.jinja

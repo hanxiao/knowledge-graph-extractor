@@ -1,0 +1,69 @@
+# autoresearch final report — Qwen3.6-35B-A3B KI-extraction decode throughput on L4
+
+**Goal:** push decode tok/s on the 3-round KI-extraction task to its limit on a
+single NVIDIA L4 24GB, with zero quality loss, no model change, no GPU change.
+
+**Test doc:** the jina-embeddings-v5-omni article (cached `doc_cache.md`,
+14,130 chars / ~3.5k tokens). Fixed seeds for comparability; final numbers from
+5 repeats/config with distinct seed-triples (mean ± std).
+
+![autoresearch progress](progress.png)
+
+## Result
+
+| config | decode tok/s | Δ | task tok/s | cov_min | unique facts |
+|---|---|---|---|---|---|
+| baseline (repo defaults) | 56.19 ± 0.29 | — | 55.79 ± 0.50 | 0.952\* | 22.6 |
+| **WINNER: n3 + p-min 0.1** | **57.84 ± 0.59** | **+2.9%** | 57.40 ± 1.07 | **1.000** | 22.0 |
+| n3 + p-min 0.3 | 57.43 ± 0.72 | +2.2% | 56.97 ± 0.67 | 0.952 | 21.6 |
+
+\* baseline's own cross-seed self-coverage is 0.952, so the winner's 1.000
+coverage on every repeat means **no baseline fact is ever lost**. The +2.9%
+(1.65 t/s) gap is ~2.5x the combined std — real signal, not noise.
+
+## The one change (apply to `docker-compose.yml`)
+
+```diff
+- --spec-draft-n-max 2
++ --spec-draft-n-max 3
++ --spec-draft-p-min 0.1
+```
+
+`--spec-draft-n-max 3` is actually this llama.cpp build's *default*; the repo had
+overridden it down to 2, leaving ~2% on the table. `--spec-draft-p-min 0.1` gates
+MTP drafting to reasonably-confident positions, adding a little more. Both are
+distribution-preserving (speculative decoding), so output quality is unchanged.
+
+## What did NOT work (and why)
+
+| lever | result | why |
+|---|---|---|
+| KV quant q8_0 / q4_0 | flat (56.2-56.4) | KV is tiny (~16 KB/tok, ~256 MiB); VRAM is filled by ~20 GB weights, not KV. Freeing KV frees nothing useful. |
+| smaller ctx (12288) | flat (56.6) | same reason — model already fits, decode is not offload-bound. |
+| mixed-precision KV (k=q8, v=f16) | -57% (24.0) | disables flash-attn fast path -> slow attention kernel. Never mix KV precisions. |
+| `--parallel` 2/3 + concurrent rounds | -10% (49-52 task t/s) | bs=1 MoE decode already saturates L4 memory bandwidth; extra streams just split it (per-stream 56 -> 32 -> 18). Confirmed with non-truncating ctx. |
+| MTP n-max 4 / 5 | -2% / -7% | too many draft tokens, acceptance falls, wasted verify compute. |
+| MTP p-min 0.5 | -2% | gating too aggressive -> too few drafts -> less speculative speedup. |
+| larger batch/ubatch | server crash | irrelevant to single-stream decode. |
+
+## Bottom line
+
+The repo's serving config was already near-optimal. Decode on this model+GPU is
+**memory-bandwidth bound at ~56-58 tok/s single-stream** — that is the practical
+ceiling on an L4, and no quality-preserving serving knob moves it materially
+beyond it. The single robust, confirmed win is the MTP draft tweak above:
+**+2.9% decode throughput, zero quality loss.**
+
+Methodology note: decode-rate run-to-run noise is small but non-zero
+(std ~0.3-0.7 t/s); unique-fact count and groundedness are noisy across seeds
+(uniq 19-25, ground 0.42-0.71 for *identical* configs), so semantic
+`coverage_of_baseline` (recall of every baseline fact) is the trustworthy
+no-loss gate, and all final claims use 5-repeat mean ± std.
+
+## Untested future direction (changes output -> needs explicit quality sign-off)
+
+The model emits ~8,100 tokens over 3 rounds for ~22 unique facts (24/45 are
+cross-round duplicates). Shortening the JSON (e.g. trimming `evidence_span`) or
+cutting redundant rounds would lower wall-clock for the same facts, but it
+changes the output and is out of scope for a strict "no quality loss, maximize
+tok/s" mandate. Flagged, not pursued.

@@ -1,0 +1,353 @@
+{
+  "id": "baseline",
+  "desc": "repo defaults (docker-compose.yml)",
+  "server_args": [
+    "--model",
+    "/models/Qwen3.6-35B-A3B-MTP-UD-Q4_K_XL.gguf",
+    "--host",
+    "0.0.0.0",
+    "--port",
+    "8080",
+    "--ctx-size",
+    "16384",
+    "--parallel",
+    "1",
+    "--flash-attn",
+    "1",
+    "--no-mmap",
+    "--threads",
+    "8",
+    "--spec-type",
+    "draft-mtp",
+    "--spec-draft-n-max",
+    "2",
+    "--n-predict",
+    "8192",
+    "--jinja",
+    "--chat-template-file",
+    "/templates/chat_template.jinja",
+    "-fitt",
+    "512",
+    "--cache-reuse",
+    "256"
+  ],
+  "sampling": {
+    "temperature": 0.7,
+    "top_p": 0.8,
+    "top_k": 20,
+    "min_p": 0.0,
+    "presence_penalty": 1.5,
+    "max_tokens": 8192
+  },
+  "metrics": {
+    "decode_tps": 56.72,
+    "task_tps": 54.95,
+    "parallel_rounds": false,
+    "prefill_tps": 1169.0,
+    "predicted_tokens": 8143,
+    "wall_3rounds_s": 148.2,
+    "unique_facts": 21,
+    "total_facts": 45,
+    "dupes": 24,
+    "groundedness": 0.524,
+    "schema_valid": true,
+    "coverage_of_baseline": 1.0
+  },
+  "unique_facts_list": [
+    {
+      "title": "Florian H\u00f6nicke authored the paper on frozen-encoder model composition.",
+      "description": "Florian H\u00f6nicke is identified as the author of the technical report introducing the new multimodal embedding architecture, published to arXiv in May 2026. The text explicitly lists him next to the arXiv link: 'arXiv.org Florian H\u00f6nicke'.",
+      "subject": "Florian H\u00f6nicke",
+      "predicate": "authored_work",
+      "object": "jina-embeddings-v5-omni technical report",
+      "evidence_span": "arXiv.org Florian H\u00f6nicke ![Image 4](https://cms.jina.ai/content/images/thumbnail/arxiv-logo-fb-3.png)](https://arxiv.org/abs/2605.08384)",
+      "confidence": 100,
+      "tags": [
+        "florian-honicke",
+        "author",
+        "arxiv",
+        "2026"
+      ]
+    },
+    {
+      "title": "Jina AI released the jina-embeddings-v5-omni suite on May 12, 2026.",
+      "description": "The company Jina AI published news of the new model release on this specific date. The metadata confirms the timing: 'Published Time: 2026-05-12T04:45:05.000+02:00'.",
+      "subject": "Jina AI",
+      "predicate": "released_product",
+      "object": "jina-embeddings-v5-omni",
+      "evidence_span": "Published Time: 2026-05-12T04:45:05.000+02:00",
+      "confidence": 100,
+      "tags": [
+        "jina-ai",
+        "release-date",
+        "2026"
+      ]
+    },
+    {
+      "title": "The jina-embeddings-v5-omni-small model contains approximately 1.56 billion parameters.",
+      "description": "This specific variant of the model is detailed in the feature table with its exact size. The documentation states: 'Total Parameters | ~1.56B'.",
+      "subject": "jina-embeddings-v5-omni-small",
+      "predicate": "has_parameter_count",
+      "object": "1.56 billion",
+      "evidence_span": "| Total Parameters | ~1.56B |",
+      "confidence": 100,
+      "tags": [
+        "model-specs",
+        "small-model",
+        "parameters"
+      ]
+    },
+    {
+      "title": "The jina-embeddings-v5-omni-nano model contains approximately 1.04 billion parameters.",
+      "description": "The smaller variant of the suite is defined by this parameter count in the technical specifications. The text notes: 'Total Parameters | ~1.04B'.",
+      "subject": "jina-embeddings-v5-omni-nano",
+      "predicate": "has_parameter_count",
+      "object": "1.04 billion",
+      "evidence_span": "| Total Parameters | ~1.04B |",
+      "confidence": 100,
+      "tags": [
+        "model-specs",
+        "nano-model",
+        "parameters"
+      ]
+    },
+    {
+      "title": "The jina-embeddings-v5-omni-small model achieves an average score of 53.93 across four modalities.",
+      "description": "Performance metrics for the small variant show this aggregate score, matching larger competitors. The text states it 'scores 53.93 on average across four modalities'.",
+      "subject": "jina-embeddings-v5-omni-small",
+      "predicate": "achieved_score",
+      "object": "53.93",
+      "evidence_span": "scores 53.93 on average across four modalities, matching LCO-7B (54.43)",
+      "confidence": 100,
+      "tags": [
+        "performance",
+        "benchmark",
+        "score"
+      ]
+    },
+    {
+      "title": "The jina-embeddings-v5-omni-small model uses 5.7 times fewer parameters than LCO-7B.",
+      "description": "Efficiency comparisons highlight this ratio against the larger baseline model. The document claims it matches performance 'at 5.7x fewer parameters'.",
+      "subject": "jina-embeddings-v5-omni-small",
+      "predicate": "parameter_efficiency_ratio",
+      "object": "5.7x fewer than LCO-7B",
+      "evidence_span": "matching LCO-7B (54.43) at 5.7x fewer parameters",
+      "confidence": 100,
+      "tags": [
+        "efficiency",
+        "comparison",
+        "lco-7b"
+      ]
+    },
+    {
+      "title": "The jina-embeddings-v5-omni-nano model outperforms LanguageBind by 8.9 points.",
+      "description": "Performance data indicates this margin of victory over the LanguageBind baseline. The text reports it 'outperforms LanguageBind (1.14B) by +8.9 points'.",
+      "subject": "jina-embeddings-v5-omni-nano",
+      "predicate": "outperformed_baseline",
+      "object": "LanguageBind by 8.9 points",
+      "evidence_span": "[jina-embeddings-v5-omni-nano] (0.95B) outperforms LanguageBind (1.14B) by +8.9 points.",
+      "confidence": 100,
+      "tags": [
+        "performance",
+        "comparison",
+        "languagebind"
+      ]
+    },
+    {
+      "title": "The jina-embeddings-v5-omni-small model uses Qwen3.5 vision encoders adapted from SigLIP2.",
+      "description": "Architectural details specify this source for the visual component. The text describes 'Vision: Qwen3.5 vision encoders (adapted from SigLIP2)'.",
+      "subject": "jina-embeddings-v5-omni-small",
+      "predicate": "uses_component",
+      "object": "Qwen3.5 vision encoders",
+      "evidence_span": "Vision: Qwen3.5 vision encoders (adapted from SigLIP2) with 2x2 spatial merge",
+      "confidence": 100,
+      "tags": [
+        "architecture",
+        "vision-encoder",
+        "qwen"
+      ]
+    },
+    {
+      "title": "The jina-embeddings-v5-omni-small model uses Whisper-large-v3 as its audio encoder.",
+      "description": "The audio processing component is identified as this specific pretrained model. The text lists 'Audio: Qwen2.5-Omni encoder (adapted from Whisper-large-v3)'.",
+      "subject": "jina-embeddings-v5-omni-small",
+      "predicate": "uses_component",
+      "object": "Whisper-large-v3",
+      "evidence_span": "Audio: Qwen2.5-Omni encoder (adapted from Whisper-large-v3).",
+      "confidence": 100,
+      "tags": [
+        "architecture",
+        "audio-encoder",
+        "whisper"
+      ]
+    },
+    {
+      "title": "Only 0.35% of the total weights in jina-embeddings-v5-omni are trainable.",
+      "description": "Training efficiency is defined by this small fraction of parameters that require gradient updates. The text states projectors represent '0.35% of the total weights'.",
+      "subject": "jina-embeddings-v5-omni-small",
+      "predicate": "has_trainable_percentage",
+      "object": "0.35%",
+      "evidence_span": "representing 0.35% of the total weights of the joint model.",
+      "confidence": 100,
+      "tags": [
+        "training",
+        "efficiency",
+        "parameters"
+      ]
+    },
+    {
+      "title": "The jina-embeddings-v5-omni-small model has a maximum sequence length of 32768 tokens.",
+      "description": "Context window capacity is specified in the feature table for this variant. The row reads: 'Max Sequence Length | 32768 tokens'.",
+      "subject": "jina-embeddings-v5-omni-small",
+      "predicate": "has_max_sequence_length",
+      "object": "32768 tokens",
+      "evidence_span": "| Max Sequence Length | 32768 tokens |",
+      "confidence": 100,
+      "tags": [
+        "specs",
+        "context-window",
+        "tokens"
+      ]
+    },
+    {
+      "title": "The jina-embeddings-v5-omni models are licensed under CC BY-NC 4.0.",
+      "description": "Usage rights for both model variants are defined by this Creative Commons license. The table lists: 'License | CC BY-NC 4.0'.",
+      "subject": "jina-embeddings-v5-omni",
+      "predicate": "has_license",
+      "object": "CC BY-NC 4.0",
+      "evidence_span": "| License | CC BY-NC 4.0 |",
+      "confidence": 100,
+      "tags": [
+        "license",
+        "legal",
+        "cc-by-nc"
+      ]
+    },
+    {
+      "title": "The jina-embeddings-v5-omni-small model achieves a video score of 41.20.",
+      "description": "Performance breakdown shows this specific metric for the video modality, noting it as a gap area. The text states: 'Video (41.20) is the current gap vs LCO-7B'.",
+      "subject": "jina-embeddings-v5-omni-small",
+      "predicate": "achieved_video_score",
+      "object": "41.20",
+      "evidence_span": "Video (41.20) is the current gap vs LCO-7B (47.41)",
+      "confidence": 100,
+      "tags": [
+        "performance",
+        "video",
+        "score"
+      ]
+    },
+    {
+      "title": "The jina-embeddings-v5-omni model suite encodes text, image, audio, and video.",
+      "description": "The models produce a single semantic embedding space for four modalities. The documentation confirms: 'encode text, image, audio, and video input into a single semantic embedding space'.",
+      "subject": "jina-embeddings-v5-omni",
+      "predicate": "supports_modalities",
+      "object": "text, image, audio, video",
+      "evidence_span": "encode text, image, audio, and video input into a single semantic embedding space",
+      "confidence": 100,
+      "tags": [
+        "model",
+        "capability",
+        "modality"
+      ]
+    },
+    {
+      "title": "The jina-embeddings-v5-omni-nano model uses a SigLIP2 Base vision encoder.",
+      "description": "Unlike the small variant which uses Qwen3.5, the nano version relies on a lighter vision backbone. The architecture table specifies: 'Vision Encoder | SigLIP2 Base'.",
+      "subject": "jina-embeddings-v5-omni-nano",
+      "predicate": "uses_vision_encoder",
+      "object": "SigLIP2 Base",
+      "evidence_span": "Vision Encoder | SigLIP2 Base",
+      "confidence": 100,
+      "tags": [
+        "model",
+        "architecture",
+        "encoder"
+      ]
+    },
+    {
+      "title": "The jina-embeddings-v5-omni models use an audio encoder adapted from Whisper-large-v3.",
+      "description": "Both small and nano variants utilize this specific audio backbone. The architecture section states: 'Audio: Qwen2.5-Omni encoder (adapted from Whisper-large-v3)'.",
+      "subject": "jina-embeddings-v5-omni",
+      "predicate": "uses_audio_encoder",
+      "object": "Qwen2.5-Omni (adapted from Whisper-large-v3)",
+      "evidence_span": "Audio: Qwen2.5-Omni encoder (adapted from Whisper-large-v3)",
+      "confidence": 100,
+      "tags": [
+        "model",
+        "architecture",
+        "encoder"
+      ]
+    },
+    {
+      "title": "The jina-embeddings-v5-omni-small model inherits a base text model from Qwen3-0.6B.",
+      "description": "This backbone remains frozen during the multimodal adaptation process. The table specifies: 'Base Text Model | jina-embeddings-v5-text-small (Qwen3-0.6B)'.",
+      "subject": "jina-embeddings-v5-omni-small",
+      "predicate": "uses_base_text_model",
+      "object": "Qwen3-0.6B",
+      "evidence_span": "Base Text Model | jina-embeddings-v5-text-small (Qwen3-0.6B)",
+      "confidence": 100,
+      "tags": [
+        "model",
+        "architecture",
+        "backbone"
+      ]
+    },
+    {
+      "title": "The jina-embeddings-v5-omni-nano model inherits a base text model from EuroBERT-210m.",
+      "description": "This smaller backbone allows for reduced parameter counts while maintaining modality support. The table specifies: 'Base Text Model | jina-embeddings-v5-text-nano (EuroBERT-210m)'.",
+      "subject": "jina-embeddings-v5-omni-nano",
+      "predicate": "uses_base_text_model",
+      "object": "EuroBERT-210m",
+      "evidence_span": "Base Text Model | jina-embeddings-v5-text-nano (EuroBERT-210m)",
+      "confidence": 100,
+      "tags": [
+        "model",
+        "architecture",
+        "backbone"
+      ]
+    },
+    {
+      "title": "The jina-embeddings-v5-omni-small model achieves an image clustering score of 84.57.",
+      "description": "This is the best score among all compared omni models for this task. The text notes: 'clustering (84.57, best among all models)'.",
+      "subject": "jina-embeddings-v5-omni-small",
+      "predicate": "achieves_image_clustering_score",
+      "object": "84.57",
+      "evidence_span": "clustering (84.57, best among all models)",
+      "confidence": 100,
+      "tags": [
+        "model",
+        "performance",
+        "image"
+      ]
+    },
+    {
+      "title": "The jina-embeddings-v5-omni-nano model achieves a document retrieval score of 70.05.",
+      "description": "It does this with just 0.31B active parameters, far outperforming LanguageBind. The text states: 'scores 70.05 with just 0.31B active parameters'.",
+      "subject": "jina-embeddings-v5-omni-nano",
+      "predicate": "achieves_document_retrieval_score",
+      "object": "70.05",
+      "evidence_span": "scores 70.05 with just 0.31B active parameters",
+      "confidence": 100,
+      "tags": [
+        "model",
+        "performance",
+        "retrieval"
+      ]
+    },
+    {
+      "title": "The jina-embeddings-v5-omni suite was published on May 12, 2026.",
+      "description": "The release of the multimodal embedding models occurred on this date, as indicated by the publication timestamp. The document states: 'Published Time: 2026-05-12T04:45:05.000+02:00'.",
+      "subject": "jina-embeddings-v5-omni",
+      "predicate": "published_on",
+      "object": "2026-05-12",
+      "evidence_span": "Published Time: 2026-05-12T04:45:05.000+02:00",
+      "confidence": 100,
+      "tags": [
+        "jina-embeddings-v5-omni",
+        "publication-date",
+        "2026"
+      ]
+    }
+  ]
+}
