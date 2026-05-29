@@ -13,7 +13,107 @@ this file holds the *why*.
 - Hardware: L4 24GB, VRAM ~21.8/22.5 GB used at ctx 16384 f16 KV (95% full ->
   the auto-fit (`-fitt 512`) is near its offload edge; freeing VRAM is the lever).
 
-## WINNER (5-repeat confirmed)
+## ROUND 2 (quant unlocked) — BIG WIN
+
+User relaxed the constraint: different quantization of the same model is allowed
+if quality holds. Since decode is memory-bandwidth bound, fewer bits/weight ->
+proportionally faster decode. Confirmed:
+
+- **UD-Q3_K_XL (~3.5bpw) @ winning flags: decode 75.39 t/s** vs Q4_K_XL@win 58.29
+  vs baseline 56.19 = **+34% over baseline**, coverage 1.0, 23 unique facts,
+  ground 0.565. Single-run; reconfirming with repeats + frontier probe (IQ3/Q2).
+  Scaling matches theory: 4.5/3.5 bpw ~= 1.29x, observed 75.4/58.3 = 1.29x.
+- Bandwidth-bound thesis (round 1) now turned into the main lever: drop bits.
+- Grammar jump-forward: dead end in llama.cpp (only masks logits, no jump-ahead;
+  that's SGLang/vLLM/outlines). The rigid JSON already boosts MTP acceptance.
+
+**Quant speed/quality frontier (single-run @ winning flags):**
+
+| quant | bpw | decode t/s | Δ base | cov | ground | verdict |
+|---|---|---|---|---|---|---|
+| Q4_K_XL | 4.5 | 58.3 | +4% | 1.0 | 0.60 | baseline quality |
+| Q3_K_XL | 3.5 | 75.4 | +34% | 1.0 | 0.565 | KEEP |
+| **IQ3_XXS** | 3.1 | **78.7** | **+40%** | 1.0 | 0.75 | **KEEP (best)** |
+| Q2_K_XL | 2.7 | 85.4 | +52% | 1.0 | **0.263** | REJECT (cliff) |
+
+**Cliff at Q2 (2.7bpw):** decode keeps rising but groundedness collapses to 0.26
+-- the model fabricates/paraphrases evidence_span instead of quoting verbatim.
+Key: coverage stayed 1.0 even for broken Q2, so coverage ALONE would have passed
+it; groundedness is the guard that caught the degradation. IQ3_XXS (3.1bpw) is
+the speed-optimal quality-preserving point. Confirming with 5 repeats + manual
+fact spot-check vs Q4.
+
+## ROUND 2 cont. — levers tested at the Q3 base (no further gain)
+
+- **MTP depth re-tune at Q3 (batch6):** n3 still optimal (n3 75.3, n4 74.2,
+  n5 70.1 + quality drop); p-min 0 == 0.1 (~75.5). Same optimum as Q4 -> the
+  n3+p-min0.1 flags transfer across quants. No gain.
+- **Model-free n-gram speculative decoding (batch7): DEAD END.** Hypothesis was
+  that repetitive JSON + verbatim evidence_span (copyable from the in-context
+  doc) would give n-gram drafting near-100% acceptance. Reality: all variants
+  far SLOWER than MTP -- ngram-cache 50.0, ngram-simple 52.5, ngram-map-k 54.6
+  vs MTP 75.4. The trained MTP head (1 draft pass -> 3 good tokens) beats
+  model-free lookup (longer drafts, lower acceptance, + lookup overhead).
+  Quality fine throughout (cov 1.0), just no speed. (--spec-type also offers
+  draft-eagle3 / draft-simple, but those need external draft weights this model
+  doesn't ship.)
+
+**Quant frontier fully mapped (batch8): k-quants preserve quality, i-quants don't.**
+
+| quant | bpw | type | decode | KI | ground | verdict |
+|---|---|---|---|---|---|---|
+| Q4_K_XL | 4.5 | k | 58 | 22.6 | .60 | base |
+| Q3_K_M | 3.3 | k | 74.3 | 23 | .565 | OK but slower than XL |
+| **Q3_K_XL** | 3.5 | k(UD) | **75.9** | 22.8 | .67 | **WINNER** |
+| IQ3_S | 3.44 | i | 78.8 | 23 | **.30** | REJECT (grounding) |
+| IQ3_XXS | 3.1 | i | 78.4 | **15** | .57 | REJECT (KI count) |
+| Q2_K_XL | 2.7 | k | 85 | 21 | **.26** | REJECT (grounding) |
+
+i-quants degrade quality in different ways (IQ3_XXS drops KIs, IQ3_S/IQ2 drop
+grounding) -> avoid for this task. Q3_K_M is lower-bpw but slower than the
+UD-tuned Q3_K_XL. **Q3_K_XL is the speed-optimal quality-preserving quant.**
+
+- **MXFP4_MOE (batch9): 59.9 t/s** -- above Q4 (58) but far below Q3 (75.9). At
+  4bpw it tracks bytes, so the ~33% bandwidth efficiency is NOT meaningfully
+  format/kernel-improvable on L4. Confirms bits/weight is the sole lever.
+
+**Converged optimum: Q3_K_XL + `--spec-draft-n-max 3 --spec-draft-p-min 0.1`
+= 75.9 t/s, +34%, zero quality loss.** Decode is bandwidth-bound at a fixed
+~33% efficiency; quant bit-width is the only quality-safe knob and ~3.5bpw
+k-quant is the floor.
+
+- **JSON-schema grammar overhead (batch10): null.** Q3 no-schema 75.7 vs schema
+  75.4 (within noise). The grammar mask is ~free at decode time, and it
+  guarantees valid JSON -> keep it.
+
+## SEARCH CONVERGED (rounds 1+2, ~30 experiments)
+
+Quality-safe decode-rate levers are exhausted within the llama.cpp+MTP stack:
+- WIN: Q3_K_XL quant (+34%) x MTP n3+p-min0.1 (+2%). Combined **56.5 -> 75.9 t/s**.
+- Inert: KV quant, ctx size, ubatch, schema grammar, MXFP4.
+- Harmful: --parallel (-10%, bandwidth split), mixed-KV (-57%), MTP n>=4.
+- Quality-breaking (rejected): IQ3_XXS (-KIs), IQ3_S/Q2 (-grounding), sub-3.5bpw.
+- Dead ends: n-gram drafting (MTP wins), Q3_K_M (slower than UD-Q3_K_XL).
+Decode is bandwidth-bound at a hardware ~33% efficiency (format-independent).
+Beyond this needs a quality tradeoff or a different engine (FP8 tensor cores +
+grammar jump-forward, e.g. SGLang/vLLM) -- out of scope for the llama.cpp+MTP repo.
+
+## Engine-pivot frontier: investigated, REJECTED (would regress)
+
+Scoped vLLM/SGLang + xgrammar jump-forward as the one remaining quality-safe
+lever. Conclusion: it would LOSE to the current setup on L4.
+- Jump-forward's "up to 5x" is under batched load (TPOT); single-stream gain is
+  only the fraction of grammar-forced JSON tokens (~1.2-1.6x, lossless).
+- Switching engines forfeits the trained MTP head (our biggest lever) and the
+  best available vLLM quant is AWQ/GPTQ 4-bit (~4.5bpw) vs our Q3 (3.5bpw) ->
+  more bandwidth.
+- Reported MoE decode: Qwen3.5-35B-A3B ~51 t/s (NVIDIA Spark), Qwen3-Next-80B-A3B
+  -AWQ ~40 t/s (RTX 6000, > L4). On an L4, vLLM base would likely be ~40-55 t/s;
+  even with jump-forward ~55-65 -- still BELOW our 75.9.
+So llama.cpp + Q3_K_XL + MTP is the practical optimum for this model on an L4.
+TERMINAL: +34% at zero quality loss; no quality-safe lever left that wins.
+
+## WINNER (round 1, 5-repeat confirmed)
 
 **`--spec-draft-n-max 3 --spec-draft-p-min 0.1`**: decode **57.84 +- 0.59 t/s
 vs baseline 56.19 +- 0.29 = +2.9%**, task_tps 57.4 vs 55.8. coverage_of_baseline
