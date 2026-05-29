@@ -155,9 +155,30 @@ BATCH8 = [
     cfg("iq3s_win",  "UD-IQ3_S @ win (~3.44bpw i-quant)", model=IQ3_S, **WIN),
 ]
 
+# ----- Batch 9: MXFP4_MOE - is the ~33% bandwidth efficiency format-dependent?
+# MXFP4 is 4bpw (more bytes than Q3's 3.5) but has native fast dequant on Ada
+# (L4). To beat Q3 (75.9) it must be >14% more kernel-efficient. Tests whether
+# the efficiency ceiling, not just bits, can be moved. Quality ~Q4-level.
+MXFP4 = "/models/Qwen3.6-35B-A3B-MXFP4_MOE.gguf"
+BATCH9 = [
+    cfg("mxfp4_win", "MXFP4_MOE @ win (~4bpw, Ada-native kernel)", model=MXFP4, **WIN),
+]
+
+# ----- Batch 10: JSON-schema grammar overhead at Q3. The schema grammar is
+# enforced per-token on CPU; at Q3's higher token rate that CPU overhead is a
+# larger fraction of step time, so dropping response_format may speed decode.
+# Quality-safe IFF the model still emits valid JSON unprompted (coverage guard).
+# This changes the sampling/serving config, NOT the extraction prompt.
+def nsc(id, desc, **ov):
+    c = cfg(id, desc, model=Q3_K_XL, **ov); c["no_schema"] = True; return c
+BATCH10 = [
+    cfg("q3_schema_ctrl", "Q3 + win + schema (control)", model=Q3_K_XL, **WIN),
+    nsc("q3_noschema",    "Q3 + win, NO json-schema grammar", **WIN),
+]
+
 BATCHES = {"batch1": BATCH1, "batch2": BATCH2, "batch3": BATCH3,
            "batch4": BATCH4, "batch5": BATCH5, "batch6": BATCH6,
-           "batch7": BATCH7, "batch8": BATCH8}
+           "batch7": BATCH7, "batch8": BATCH8, "batch9": BATCH9, "batch10": BATCH10}
 
 if __name__ == "__main__":
     name = sys.argv[1] if len(sys.argv) > 1 else "batch1"

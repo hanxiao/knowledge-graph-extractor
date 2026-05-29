@@ -149,7 +149,7 @@ def load_doc():
     with open(DOC_CACHE) as f:
         return f.read()
 
-def build_payload(doc_text, prompt, sampling, seed):
+def build_payload(doc_text, prompt, sampling, seed, no_schema=False):
     docid = hashlib.md5(doc_text[:500].encode()).hexdigest()[:8]
     full = f"{prompt}\n\nDocument:\n  docid: {docid}\n  url: {ARTICLE_URL}\n  text: {doc_text}"
     p = {
@@ -157,10 +157,11 @@ def build_payload(doc_text, prompt, sampling, seed):
         "messages": [{"role": "user", "content": full}],
         "stream": False,
         "seed": seed,
-        "response_format": {"type": "json_schema",
-                            "json_schema": {"name": "ki_facts", "strict": True, "schema": FACT_SCHEMA}},
         "chat_template_kwargs": {"enable_thinking": False},
     }
+    if not no_schema:  # default: constrain with the JSON schema grammar
+        p["response_format"] = {"type": "json_schema",
+                                "json_schema": {"name": "ki_facts", "strict": True, "schema": FACT_SCHEMA}}
     p.update(sampling)
     return p
 
@@ -264,8 +265,9 @@ def run_config(cfg, baseline=None, reuse_server=False):
     timings_all = [None] * len(SEEDS)
     schema_flags = [True] * len(SEEDS)
 
+    no_schema = cfg.get("no_schema", False)
     def do_seed(i, seed):
-        content, timings, wall = call_round(build_payload(doc, prompt, sampling, seed))
+        content, timings, wall = call_round(build_payload(doc, prompt, sampling, seed, no_schema))
         facts, strict = parse_facts(content)
         rounds[i] = facts
         timings_all[i] = timings

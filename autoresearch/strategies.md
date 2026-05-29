@@ -58,10 +58,29 @@ fact spot-check vs Q4.
   draft-eagle3 / draft-simple, but those need external draft weights this model
   doesn't ship.)
 
+**Quant frontier fully mapped (batch8): k-quants preserve quality, i-quants don't.**
+
+| quant | bpw | type | decode | KI | ground | verdict |
+|---|---|---|---|---|---|---|
+| Q4_K_XL | 4.5 | k | 58 | 22.6 | .60 | base |
+| Q3_K_M | 3.3 | k | 74.3 | 23 | .565 | OK but slower than XL |
+| **Q3_K_XL** | 3.5 | k(UD) | **75.9** | 22.8 | .67 | **WINNER** |
+| IQ3_S | 3.44 | i | 78.8 | 23 | **.30** | REJECT (grounding) |
+| IQ3_XXS | 3.1 | i | 78.4 | **15** | .57 | REJECT (KI count) |
+| Q2_K_XL | 2.7 | k | 85 | 21 | **.26** | REJECT (grounding) |
+
+i-quants degrade quality in different ways (IQ3_XXS drops KIs, IQ3_S/IQ2 drop
+grounding) -> avoid for this task. Q3_K_M is lower-bpw but slower than the
+UD-tuned Q3_K_XL. **Q3_K_XL is the speed-optimal quality-preserving quant.**
+
+- **MXFP4_MOE (batch9): 59.9 t/s** -- above Q4 (58) but far below Q3 (75.9). At
+  4bpw it tracks bytes, so the ~33% bandwidth efficiency is NOT meaningfully
+  format/kernel-improvable on L4. Confirms bits/weight is the sole lever.
+
 **Converged optimum: Q3_K_XL + `--spec-draft-n-max 3 --spec-draft-p-min 0.1`
-= 75.9 t/s, +34% vs baseline, zero quality loss.** Open frontier still being
-probed: the 3.1-3.5bpw band (Q3_K_M, IQ3_S) for a possibly-faster k-quant that
-still preserves KI count.
+= 75.9 t/s, +34%, zero quality loss.** Decode is bandwidth-bound at a fixed
+~33% efficiency; quant bit-width is the only quality-safe knob and ~3.5bpw
+k-quant is the floor. Remaining probe: JSON-schema grammar CPU overhead.
 
 ## WINNER (round 1, 5-repeat confirmed)
 
