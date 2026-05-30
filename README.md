@@ -24,7 +24,7 @@ Inspired by the [Knowledge Indicators concept from Elastic](https://www.elastic.
 
 Single NVIDIA L4 24GB GPU (e.g. GCP `g2-standard-8`).
 
-**Active model: `LiquidAI/LFM2.5-8B-A1B` (Q4_K_M, nothink)** — a 1B-active MoE, ~5GB, ~130 tok/s decode / ~10s per extraction round. Fast and on-device-friendly; produces good fact triples but **paraphrases evidence** rather than quoting verbatim (lower grounding). Sampling is LFM-tuned (temp 0.2 / top_k 80 / repetition 1.05) and nothink is forced via `--reasoning-budget 0`.
+**Active model: `LiquidAI/LFM2.5-8B-A1B` (Q4_K_M, thinking)** — a 1B-active MoE, ~5GB. Thinking is ON: the model reasons before emitting JSON, which is what makes it populate the full fact triple + evidence (in nothink mode it leaves subject/predicate/object/evidence empty — title+description only). Cost: ~5-7k reasoning tokens/round → ~45-60s/round (vs ~10s nothink). Decode is fast (~130 tok/s); cards appear after the reasoning completes. Sampling is LFM-tuned (temp 0.2 / top_k 80 / repetition 1.05). Note: it still **paraphrases evidence** rather than quoting verbatim (lower grounding than Qwen). For nothink (fast, title+desc only) drop the reasoning flag — but it won't produce full KIs.
 
 **Alternative: `Qwen3.6-35B-A3B` Q3_K_XL + MTP** — slower (~76 tok/s) but higher quality with verbatim-grounded evidence; +34% over Q4 from the optimization work in [`autoresearch/`](autoresearch/REPORT.md). To switch, see the commented config in `docker-compose.yml` + `scripts/setup.sh` (the Configuration/Key-findings sections below describe this model).
 
@@ -65,7 +65,7 @@ docker compose up -d --build
 
 ## Configuration
 
-> The flags below are for the **Qwen3.6-35B-A3B** alternative (MTP speculative decoding). The active LFM2.5 config is simpler — no MTP/spec flags, `--reasoning-budget 0`, the model's own chat template — see `docker-compose.yml`.
+> The flags below are for the **Qwen3.6-35B-A3B** alternative (MTP speculative decoding). The active LFM2.5 config is simpler — no MTP/spec flags, thinking on, the model's own chat template — see `docker-compose.yml`.
 
 ### llama-server flags (in `docker-compose.yml`)
 
