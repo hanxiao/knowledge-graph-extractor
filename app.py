@@ -208,18 +208,20 @@ async def stream_single_extraction(
     doc_tokens_est = len(body_text) // 4
 
     payload = {
-        "model": "qwen3.6",
+        "model": "lfm2.5",
         "messages": [{"role": "user", "content": full_prompt}],
         "max_tokens": 8192,
         "stream": True,
         "seed": seed,
-        "temperature": 0.7,
-        "top_p": 0.8,
-        "top_k": 20,
-        "min_p": 0.0,
-        "presence_penalty": 1.5,
+        # LFM2.5-8B-A1B recommended sampling (temp 0.2 / top_k 80 / repetition 1.05).
+        # NOTE: no presence_penalty -- it penalizes the repeated JSON schema-key
+        # tokens and makes LFM emit empty fields. nothink is set server-side via
+        # --reasoning-budget 0 (see docker-compose.yml).
+        # (Qwen3.6 used: temperature 0.7, top_p 0.8, top_k 20, presence_penalty 1.5.)
+        "temperature": 0.2,
+        "top_k": 80,
+        "repeat_penalty": 1.05,
         "response_format": {"type": "json_schema", "json_schema": {"name": "ki_facts", "strict": True, "schema": FACT_SCHEMA}},
-        "chat_template_kwargs": {"enable_thinking": False},
     }
 
     yield f"data: {json.dumps({'type': 'round_start', 'round': round_num, 'seed': seed, 'prompt_tokens_est': prompt_tokens_est, 'system_tokens_est': system_tokens_est, 'doc_tokens_est': doc_tokens_est})}\n\n"
@@ -564,7 +566,7 @@ input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;hei
 <nav>
   <div class="logo">KI Extractor</div>
   <span class="sep">|</span>
-  <span class="tag">Qwen3.6-35B-A3B-MTP &middot; NVIDIA L4 24GB</span>
+  <span class="tag">LFM2.5-8B-A1B (nothink) &middot; NVIDIA L4 24GB</span>
 </nav>
 
 <div class="layout">

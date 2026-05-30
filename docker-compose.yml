@@ -15,23 +15,30 @@ services:
               count: all
               capabilities: [gpu]
     restart: unless-stopped
+    # Active model: LiquidAI LFM2.5-8B-A1B (1B-active MoE), nothink mode.
+    # Fast (~130 tok/s, ~10s/round); uses its own embedded chat template (no
+    # --chat-template-file) and --reasoning-budget 0 to skip the reasoning block.
+    # No MTP head, so no spec-decode flags. App sampling is LFM-tuned (app.py).
     command: >
-      --model /models/Qwen3.6-35B-A3B-UD-Q3_K_XL.gguf
+      --model /models/LFM2.5-8B-A1B-Q4_K_M.gguf
       --host 0.0.0.0
       --port 8080
       --ctx-size 16384
       --parallel 1
       --flash-attn 1
-      --no-mmap
       --threads 8
-      --spec-type draft-mtp
-      --spec-draft-n-max 3
-      --spec-draft-p-min 0.1
+      --n-gpu-layers 999
       --n-predict 8192
       --jinja
-      --chat-template-file /templates/chat_template.jinja
-      -fitt 512
       --cache-reuse 256
+      --reasoning-budget 0
+    # --- To revert to Qwen3.6-35B-A3B Q3 + MTP (higher quality, verbatim
+    # --- grounding; also set app.py sampling back to temp0.7/presence_penalty1.5):
+    #   --model /models/Qwen3.6-35B-A3B-UD-Q3_K_XL.gguf
+    #   --host 0.0.0.0 --port 8080 --ctx-size 16384 --parallel 1 --flash-attn 1
+    #   --no-mmap --threads 8 --spec-type draft-mtp --spec-draft-n-max 3
+    #   --spec-draft-p-min 0.1 --n-predict 8192 --jinja
+    #   --chat-template-file /templates/chat_template.jinja -fitt 512 --cache-reuse 256
 
   ki-extractor:
     build: .
