@@ -569,7 +569,7 @@ input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;hei
 <nav>
   <div class="logo">KI Extractor</div>
   <span class="sep">|</span>
-  <span class="tag">LFM2.5-8B-A1B (nothink) &middot; NVIDIA L4 24GB</span>
+  <span class="tag">LFM2.5-8B-A1B (thinking) &middot; NVIDIA L4 24GB</span>
 </nav>
 
 <div class="layout">
