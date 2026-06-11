@@ -640,7 +640,7 @@ input[type="range"]{-webkit-appearance:none;width:100%;height:2px;background:var
 input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:0;background:var(--black);cursor:pointer;border:none}
 input[type="range"]:disabled{background:var(--border-soft)}
 input[type="range"]:disabled::-webkit-slider-thumb{background:var(--text3)}
-.dedup-select{flex:1;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:5px 7px;border-radius:0;font-size:11px;font-family:var(--mono)}
+.dedup-select{flex:1;min-width:0;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:5px 7px;border-radius:0;font-size:11px;font-family:var(--mono)}
 .dedup-select:disabled{color:var(--text3);border-color:var(--border-soft);background:var(--bg3)}
 
 .dropzone{border:1px dashed var(--border);border-radius:0;padding:18px 12px;text-align:center;cursor:pointer;color:var(--text3);font-size:11px;transition:all .12s;background:var(--bg)}
@@ -743,7 +743,7 @@ input[type="range"]:disabled::-webkit-slider-thumb{background:var(--text3)}
       <div class="param-row" style="margin:0;margin-bottom:6px">
         <label>Model</label>
         <select id="dedup-model" class="dedup-select">
-          <option value="v5-nano" selected>jina-embeddings-v5-text-nano (CPU)</option>
+          <option value="v5-nano" selected>v5-nano</option>
           <option value="">Off</option>
         </select>
       </div>
