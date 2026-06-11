@@ -622,7 +622,7 @@ HTML_PAGE = r"""<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>KI Extractor</title>
+<title>KG</title>
 <script src="https://unpkg.com/force-graph@1.43.5/dist/force-graph.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -734,7 +734,7 @@ input[type="range"]:disabled::-webkit-slider-thumb{background:var(--text3)}
 <body>
 
 <nav>
-  <div class="logo">KI Extractor</div>
+  <div class="logo">KG</div>
   <span class="sep">|</span>
   <span class="tag">qwen3.6-35b-a3b-mtp / nvidia l4 24gb</span>
 </nav>
@@ -803,7 +803,10 @@ input[type="range"]:disabled::-webkit-slider-thumb{background:var(--text3)}
       </div>
     </div>
 
-    <button class="btn" id="extract-btn" onclick="extract()">Extract</button>
+    <div style="display:flex;gap:6px">
+      <button class="btn" id="extract-btn" onclick="extract()" style="flex:1">Extract</button>
+      <button class="btn" id="pause-btn" onclick="togglePause()" style="flex:0 0 92px;display:none">Pause</button>
+    </div>
 
     <div class="section hidden" id="files-section">
       <div class="section-title" style="display:flex;justify-content:space-between"><span>Files</span><span id="files-progress" style="font-family:var(--mono);color:var(--text2)"></span></div>
@@ -1030,9 +1033,30 @@ function updateFilesProgress(done,total){document.getElementById('files-progress
 
 // ---------- Extraction ----------
 let totalTps=0;
+// ---------- Pause / resume ----------
+// Pause works by stopping reads on the SSE stream; TCP back-pressure suspends
+// the server-side LLM generation too, so it's a real pause, not just UI.
+let _paused=false, _resumeWaiters=[];
+function setPaused(p){
+  _paused=p;
+  const pb=document.getElementById('pause-btn');
+  pb.textContent=p?'Resume':'Pause';
+  if(!p){ const w=_resumeWaiters; _resumeWaiters=[]; w.forEach(fn=>fn()); }
+}
+function togglePause(){
+  setPaused(!_paused);
+  const st=document.getElementById('status-area');
+  if(_paused){ st.innerHTML='<div class="status-msg">Paused</div>'; }
+}
+function waitIfPaused(){
+  if(!_paused)return Promise.resolve();
+  return new Promise(res=>_resumeWaiters.push(res));
+}
+
 async function extract(){
   const btn=document.getElementById('extract-btn');
   btn.disabled=true;btn.textContent='Extracting...';
+  const pb=document.getElementById('pause-btn');pb.style.display='block';setPaused(false);
   window._selfExtracting=true;
   // reset
   jsonlLines=[];graphNodes=new Map();graphLinks=[];
@@ -1071,11 +1095,13 @@ async function extract(){
     await consume(resp,k);
   }catch(e){fail(e.message);}
   btn.disabled=false;btn.textContent='Extract';window._selfExtracting=false;
+  document.getElementById('pause-btn').style.display='none';setPaused(false);
 }
 function fail(msg){
   document.getElementById('status-area').innerHTML='<div class="status-msg err">'+esc(msg)+'</div>';
   document.getElementById('extract-btn').disabled=false;
   document.getElementById('extract-btn').textContent='Extract';
+  document.getElementById('pause-btn').style.display='none';setPaused(false);
   window._selfExtracting=false;
 }
 
@@ -1083,6 +1109,7 @@ async function consume(resp,k){
   const reader=resp.body.getReader();const dec=new TextDecoder();let buf='';
   let totalFiles=0, doneFiles=0;
   while(true){
+    await waitIfPaused();
     const{done,value}=await reader.read();if(done)break;
     buf+=dec.decode(value,{stream:true});
     const lines=buf.split('\n');buf=lines.pop();
