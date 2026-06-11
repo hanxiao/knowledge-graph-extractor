@@ -117,13 +117,15 @@ Anti-patterns -- do NOT do these:
 - Don't fill the budget with generic boilerplate (tagline, copyright, nav) at
  the expense of specific, connectable relationships deeper in the body.
 Predicate guidance:
-- Use a precise snake_case predicate (<=32 chars). Reuse common terms when they fit:
- built_by, created_by, based_on, trained_on, fine_tuned_from, part_of,
- developed_at, founded_by, founded_in, located_in, released_on, version_of,
- outperforms, compared_with, evaluated_on, scored, has_metric, supports,
- integrates_with, acquired_by, authored_by, cites, member_of, position_held,
- successor_of, used_for.
-- Coin a new specific predicate when none fit. AVOID the catch-all affiliated_with.
+- Always choose the MOST precise snake_case predicate (<=32 chars) for the actual
+ relation -- accuracy matters more than reusing a known term. Coin a new one
+ freely whenever it fits better.
+- The following are only EXAMPLES of the style/granularity (NOT a fixed list,
+ NOT a menu to pick from): built_by, based_on, trained_on, fine_tuned_from,
+ released_on, outperforms, evaluated_on, scored, integrates_with, acquired_by,
+ authored_by, cites, position_held, successor_of, used_for. Do not force a
+ relation into one of these if a more specific predicate describes it better.
+- AVOID vague catch-alls like affiliated_with or related_to.
 Title and description constraints (CRITICAL -- items violating these are dropped):
 - title and description MUST read as natural standalone fact statements.
 - They MUST NOT mention the document, the dataset, or this task.
@@ -897,15 +899,23 @@ function initGraph(){
     .nodeVal(n=>Math.min(10,1.5+n.deg))
     .nodeColor(()=> '#1a1a1a')
     .nodeRelSize(4)
+    .nodePointerAreaPaint((n,color,ctx)=>{
+      const r=Math.min(10,1.5+n.deg);
+      ctx.fillStyle=color;ctx.beginPath();ctx.arc(n.x,n.y,r,0,2*Math.PI);ctx.fill();
+    })
     .linkColor(()=> 'rgba(26,26,26,0.30)')
     .linkWidth(1)
     .linkDirectionalArrowLength(3.5)
     .linkDirectionalArrowColor(()=> 'rgba(26,26,26,0.45)')
     .linkDirectionalArrowRelPos(1)
     .linkHoverPrecision(8)
-    .nodeCanvasObjectMode(()=> 'after')
+    .nodeCanvasObjectMode(()=> 'replace')
     .nodeCanvasObject((n,ctx,scale)=>{
-      const r=Math.min(10,1.5+n.deg)/scale;
+      const r=Math.min(10,1.5+n.deg);
+      // hollow node: white fill + black ring
+      ctx.beginPath();ctx.arc(n.x,n.y,r,0,2*Math.PI);
+      ctx.fillStyle='#ffffff';ctx.fill();
+      ctx.lineWidth=1.3/scale;ctx.strokeStyle='#1a1a1a';ctx.stroke();
       if(scale>1.0){
         const disp=n.label||n.id;
         const label=disp.length>30?disp.slice(0,29)+'…':disp;
