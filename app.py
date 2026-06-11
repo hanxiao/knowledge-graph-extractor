@@ -895,9 +895,16 @@ function initGraph(){
       const r=Math.min(10,1.5+n.deg)/scale;
       if(scale>1.0){
         const label=n.id.length>30?n.id.slice(0,29)+'…':n.id;
-        ctx.font=`${Math.max(2.5,10/scale)}px 'SF Mono',monospace`;
-        ctx.fillStyle='#1a1a1a';ctx.textAlign='center';ctx.textBaseline='top';
-        ctx.fillText(label,n.x,n.y+r+1.5/scale);
+        const fs=Math.max(2.5,10/scale);
+        ctx.font=`${fs}px 'SF Mono',monospace`;
+        ctx.textAlign='center';ctx.textBaseline='top';
+        const padX=3/scale, padY=1.6/scale;
+        const tw=ctx.measureText(label).width;
+        const bx=n.x-tw/2-padX, by=n.y+r+1.5/scale, bw=tw+padX*2, bh=fs+padY*2;
+        ctx.fillStyle='#1a1a1a';
+        ctx.fillRect(bx,by,bw,bh);
+        ctx.fillStyle='#ffffff';
+        ctx.fillText(label,n.x,by+padY);
       }
     })
     .cooldownTicks(80)
