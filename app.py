@@ -4,7 +4,7 @@
 import json, time, hashlib, re, random, os, io, zipfile, tempfile, shutil, numpy as np
 from typing import AsyncGenerator
 from fastapi import FastAPI, Request, UploadFile, File, Form
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, StreamingResponse, FileResponse
 import httpx
 import uvicorn
 
@@ -560,6 +560,27 @@ _active_extractions = 0
 _queue_counter = 0  # total requests received
 _done_counter = 0   # total requests completed
 
+DEFAULT_ZIP_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "jina-corpus.zip")
+DEFAULT_ZIP_NAME = "jina-corpus.zip"
+
+@app.get("/api/default-zip-info")
+async def default_zip_info():
+    if not os.path.exists(DEFAULT_ZIP_PATH):
+        return {"available": False}
+    try:
+        with zipfile.ZipFile(DEFAULT_ZIP_PATH) as zf:
+            n = sum(1 for i in zf.infolist() if not i.is_dir())
+    except Exception:
+        n = 0
+    return {"available": True, "name": DEFAULT_ZIP_NAME, "files": n,
+            "size_mb": round(os.path.getsize(DEFAULT_ZIP_PATH) / 1024 / 1024, 1)}
+
+@app.get("/api/default-zip")
+async def default_zip():
+    if not os.path.exists(DEFAULT_ZIP_PATH):
+        return {"available": False}
+    return FileResponse(DEFAULT_ZIP_PATH, media_type="application/zip", filename=DEFAULT_ZIP_NAME)
+
 @app.get("/api/default-prompt")
 async def get_default_prompt():
     return {"prompt": DEFAULT_PROMPT}
@@ -811,6 +832,19 @@ fetch('/api/default-prompt').then(r=>r.json()).then(d=>{
   document.getElementById('prompt-edit').value=d.prompt;
 });
 
+// Preload the bundled default corpus zip so the Zip tab works out of the box.
+let defaultZipLoaded=false;
+fetch('/api/default-zip-info').then(r=>r.json()).then(d=>{
+  if(!d.available)return;
+  const zn=document.getElementById('zip-name');
+  zn.textContent='loading '+d.name+' ('+d.files+' files, '+d.size_mb+' MB)...';
+  fetch('/api/default-zip').then(r=>r.blob()).then(b=>{
+    const f=new File([b],d.name,{type:'application/zip'});
+    zipFileObj=f;defaultZipLoaded=true;
+    zn.textContent=d.name+' · '+d.files+' files · '+d.size_mb+' MB (default)';
+  }).catch(()=>{zn.textContent=''});
+}).catch(()=>{});
+
 document.getElementById('dedup-model').addEventListener('change',function(){
   const on=this.value!=='';
   document.getElementById('dedup-field').disabled=!on;
@@ -835,7 +869,7 @@ zf.addEventListener('change',()=>{ if(zf.files[0]) setZip(zf.files[0]); });
 ['dragover','dragenter'].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.add('drag')}));
 ['dragleave','drop'].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.remove('drag')}));
 dz.addEventListener('drop',e=>{const f=e.dataTransfer.files[0]; if(f&&f.name.endsWith('.zip'))setZip(f)});
-function setZip(f){zipFileObj=f;document.getElementById('zip-name').textContent=f.name+' ('+(f.size/1024/1024).toFixed(1)+' MB)'}
+function setZip(f){zipFileObj=f;defaultZipLoaded=false;document.getElementById('zip-name').textContent=f.name+' ('+(f.size/1024/1024).toFixed(1)+' MB)'}
 
 function esc(s){const d=document.createElement('div');d.textContent=s==null?'':s;return d.innerHTML}
 
