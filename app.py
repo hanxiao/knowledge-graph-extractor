@@ -19,9 +19,58 @@ CTX_SIZE = 16384
 # The 16384-token ctx must hold the whole request (prompt + doc) AND the output
 # budget (max_tokens=8192). So the input side must stay <= ~8192 tokens. With the
 # instruction prompt ~1.4K tokens, that leaves ~6.5K tokens (~24K chars) for the
-# doc. Bigger docs (e.g. a 14-page arXiv PDF ~17K tokens) overflow ctx -> llama
-# returns 400 with zero generation. We truncate the doc to fit.
+# doc per LLM call. Instead of truncating oversized docs, we CHUNK them so the
+# whole text gets extracted (see chunk_text).
 MAX_INPUT_CHARS = 24000
+
+
+def chunk_text(text: str, limit: int = MAX_INPUT_CHARS) -> list:
+    """Split an oversized doc into <=limit-char chunks so the FULL text is
+    extracted, never truncated.
+
+    Strategy per Han: don't cut off -- back off the chunk size by halving
+    exponentially until a piece fits, take that piece, then apply the SAME
+    strategy to the remainder. In practice: walk the text, and for each step
+    take the largest prefix that fits within `limit`, preferring to break on a
+    paragraph/sentence/word boundary near the cut (found by halving back from
+    the hard limit) so chunks stay coherent. Returns a list of chunk strings
+    whose concatenation equals the original text (modulo the split points).
+    """
+    text = text or ""
+    if len(text) <= limit:
+        return [text] if text.strip() else []
+    chunks = []
+    i = 0
+    n = len(text)
+    while i < n:
+        if n - i <= limit:
+            piece = text[i:]
+            if piece.strip():
+                chunks.append(piece)
+            break
+        # hard window [i, i+limit]; find a clean break by backing off (halving)
+        hard = i + limit
+        cut = -1
+        # exponential back-off: try boundaries within the last 1/2, 1/4, 1/8 ...
+        # of the window, looking for a paragraph break, then sentence, then space.
+        back = limit
+        while back >= 64:
+            lo = hard - back
+            for seps in ("\n\n", "\n", ". ", "? ", "! ", " "):
+                pos = text.rfind(seps, lo, hard)
+                if pos > i:
+                    cut = pos + len(seps)   # include the separator in this chunk
+                    break
+            if cut > i:
+                break
+            back //= 2
+        if cut <= i:
+            cut = hard  # no boundary found; hard cut (still no data loss)
+        piece = text[i:cut]
+        if piece.strip():
+            chunks.append(piece)
+        i = cut
+    return chunks
 
 DEDUP_MODEL = None
 DEDUP_MODEL_NAME = "jinaai/jina-embeddings-v5-text-nano"
@@ -210,10 +259,9 @@ async def fetch_url(url: str) -> tuple[str, str, bool]:
             elif line.startswith("# "):
                 title = line[2:].strip()
                 break
-        truncated = len(text) > MAX_INPUT_CHARS
-        if truncated:
-            text = text[:MAX_INPUT_CHARS]
-        return text, title, truncated
+        # Return the FULL text; chunking happens at extraction time so nothing
+        # is dropped. 'truncated' kept for the UI 'chars' note only.
+        return text, title, False
 
 
 def read_file_text(path: str, name: str) -> str:
@@ -486,8 +534,8 @@ async def run_job(job_id: str):
                 doc_text, title, truncated = await fetch_url(url)
                 emit({"type": "fetched", "title": title, "chars": len(doc_text), "truncated": truncated})
             else:
-                doc_text = text[:MAX_INPUT_CHARS]
-                emit({"type": "fetched", "title": "Pasted text", "chars": len(doc_text), "truncated": len(text) > MAX_INPUT_CHARS})
+                doc_text = text
+                emit({"type": "fetched", "title": "Pasted text", "chars": len(doc_text), "truncated": False})
             meta["num_files"] = 1
             work = [(url or "pasted", doc_text)]
             cleanup = lambda: None
@@ -504,40 +552,46 @@ async def run_job(job_id: str):
                 emit({"type": "file_end", "file_index": fi, "file": fname, "file_facts": 0, "skipped": True})
                 persist_progress("running")
                 continue
-            docid = hashlib.md5(doc_text[:500].encode()).hexdigest()[:8]
-            doc_text = doc_text[:MAX_INPUT_CHARS]
+            # Split oversized docs so the FULL text is extracted (no truncation).
+            chunks = chunk_text(doc_text, MAX_INPUT_CHARS)
+            if len(chunks) > 1:
+                emit({"type": "status", "message": f"Doc is large ({len(doc_text):,} chars) -> {len(chunks)} chunks"})
             file_facts = 0
             file_llm_error = None
-            for r in range(1, k_rounds + 1):
-                seed = random.randint(1, 999999)
-                async for event in stream_single_extraction(
-                    doc_text, extraction_prompt, fname if meta.get("source_kind") != "zip" else "",
-                    docid, round_num=r, seed=seed, fact_offset=total_facts,
-                    existing_embs=existing_embs, existing_indices=existing_indices,
-                    dedup_threshold=dedup_threshold, dedup_field=dedup_field,
-                    dedup_enabled=dedup_enabled,
-                    source_file=fname if meta.get("source_kind") == "zip" else "",
-                ):
-                    if not event.startswith("data: "):
-                        continue
-                    try:
-                        ev = json.loads(event[6:])
-                    except Exception:
-                        continue
-                    if ev.get("type") == "fact":
-                        rec = {**ev["fact"], "is_duplicate": ev["is_duplicate"]}
-                        jsonl_fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
-                        jsonl_fh.flush()
-                        emit({"type": "fact", "fact": rec, "is_duplicate": ev["is_duplicate"], "tps": ev.get("tps", 0)})
-                    elif ev.get("type") == "round_end":
-                        total_facts += ev["round_facts"]
-                        total_dupes += ev["round_dupes"]
-                        file_facts += ev["round_facts"]
-                    elif ev.get("type") == "llm_error":
-                        file_llm_error = f"llama {ev.get('status')}: {ev.get('message','')}"
-                        emit({"type": "warn", "file": fname, "message": file_llm_error})
-                    elif ev.get("type") in ("metrics", "round_start"):
-                        emit(ev)
+            for ci, chunk in enumerate(chunks):
+                if paused_requested():
+                    break
+                docid = hashlib.md5(chunk[:500].encode()).hexdigest()[:8]
+                for r in range(1, k_rounds + 1):
+                    seed = random.randint(1, 999999)
+                    async for event in stream_single_extraction(
+                        chunk, extraction_prompt, fname if meta.get("source_kind") != "zip" else "",
+                        docid, round_num=r, seed=seed, fact_offset=total_facts,
+                        existing_embs=existing_embs, existing_indices=existing_indices,
+                        dedup_threshold=dedup_threshold, dedup_field=dedup_field,
+                        dedup_enabled=dedup_enabled,
+                        source_file=fname if meta.get("source_kind") == "zip" else "",
+                    ):
+                        if not event.startswith("data: "):
+                            continue
+                        try:
+                            ev = json.loads(event[6:])
+                        except Exception:
+                            continue
+                        if ev.get("type") == "fact":
+                            rec = {**ev["fact"], "is_duplicate": ev["is_duplicate"]}
+                            jsonl_fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
+                            jsonl_fh.flush()
+                            emit({"type": "fact", "fact": rec, "is_duplicate": ev["is_duplicate"], "tps": ev.get("tps", 0)})
+                        elif ev.get("type") == "round_end":
+                            total_facts += ev["round_facts"]
+                            total_dupes += ev["round_dupes"]
+                            file_facts += ev["round_facts"]
+                        elif ev.get("type") == "llm_error":
+                            file_llm_error = f"llama {ev.get('status')}: {ev.get('message','')}"
+                            emit({"type": "warn", "file": fname, "message": file_llm_error})
+                        elif ev.get("type") in ("metrics", "round_start"):
+                            emit(ev)
             # A single-document job (url/text) with an LLM error and no facts is a
             # real failure -- surface it instead of a fake 'done, 0 facts'.
             if file_llm_error and meta.get("source_kind") != "zip" and file_facts == 0:
