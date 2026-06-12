@@ -842,7 +842,12 @@ input[type="range"]:disabled::-webkit-slider-thumb{background:var(--text3)}
 /* GRAPH */
 #graph{width:100%;height:100%}
 .graph-empty{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:var(--text3);font-size:12px;text-align:center;text-transform:uppercase;letter-spacing:1px}
-.graph-overlay{position:absolute;top:12px;left:12px;display:flex;gap:6px;align-items:center;z-index:10}
+.graph-overlay{position:absolute;top:12px;left:12px;display:flex;gap:6px;align-items:center;z-index:10;flex-wrap:wrap;max-width:calc(100% - 24px)}
+.path-bar{position:absolute;top:44px;left:12px;right:12px;z-index:9;background:var(--bg);border:1px solid var(--border);padding:7px 10px;font-family:var(--mono);font-size:11px;color:var(--text);line-height:1.7;max-height:90px;overflow-y:auto;box-shadow:3px 3px 0 rgba(26,26,26,.10)}
+.path-bar .pn{font-weight:700}
+.path-bar .pe{color:var(--text2)}
+.path-bar .parrow{color:var(--text3);margin:0 2px}
+.path-bar .ptitle{display:block;font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px}
 .graph-badge{background:var(--bg);border:1px solid var(--border);border-radius:0;padding:4px 9px;font-size:10px;font-family:var(--mono);color:var(--text);text-transform:uppercase;letter-spacing:.5px}
 
 /* HOVER CARD */
@@ -969,7 +974,10 @@ input[type="range"]:disabled::-webkit-slider-thumb{background:var(--text3)}
     <div class="graph-overlay hidden" id="graph-overlay">
       <span class="graph-badge" id="graph-stats">0 edges</span>
       <span class="graph-badge" style="cursor:pointer" onclick="zoomFit()">fit</span>
+      <span class="graph-badge" style="cursor:pointer" id="labels-toggle" onclick="toggleLabels()">labels: on</span>
+      <span class="graph-badge" style="cursor:pointer" id="path-toggle" onclick="toggleLongestPath()">longest path</span>
     </div>
+    <div class="path-bar hidden" id="path-bar"></div>
     <div class="hovercard hidden" id="hovercard"></div>
   </div>
 </div>
@@ -983,6 +991,10 @@ let jsonlLines=[];           // raw jsonl strings for download
 let graphNodes=new Map();    // id -> node
 let graphLinks=[];           // link objects, each carries .fact
 let Graph=null;
+let showLabels=true;         // toggle all node text labels
+let _pathNodes=new Set();    // node ids on the highlighted longest path
+let _pathLinks=new Set();    // link objects on the highlighted longest path
+let pathOn=false;
 
 fetch(API_BASE+'/api/default-prompt').then(r=>r.json()).then(d=>{
   defaultPrompt=d.prompt;
@@ -1050,23 +1062,25 @@ function initGraph(){
       const r=Math.min(10,1.5+n.deg);
       ctx.fillStyle=color;ctx.beginPath();ctx.arc(n.x,n.y,r,0,2*Math.PI);ctx.fill();
     })
-    .linkColor(()=> 'rgba(26,26,26,0.30)')
-    .linkWidth(1)
+    .linkColor(l=> _pathLinks.has(l) ? '#1a1a1a' : 'rgba(26,26,26,0.18)')
+    .linkWidth(l=> _pathLinks.has(l) ? 2.5 : 1)
     .linkDirectionalArrowLength(3.5)
-    .linkDirectionalArrowColor(()=> 'rgba(26,26,26,0.45)')
+    .linkDirectionalArrowColor(l=> _pathLinks.has(l) ? '#1a1a1a' : 'rgba(26,26,26,0.45)')
     .linkDirectionalArrowRelPos(1)
     .linkHoverPrecision(8)
     .nodeCanvasObjectMode(()=> 'replace')
     .nodeCanvasObject((n,ctx,scale)=>{
       const r=Math.min(10,1.5+n.deg);
-      // hollow node: white fill + black ring
+      const onPath=_pathNodes.has(n.id);
+      // hollow node: white fill + black ring (filled black when on longest path)
       ctx.beginPath();ctx.arc(n.x,n.y,r,0,2*Math.PI);
-      ctx.fillStyle='#ffffff';ctx.fill();
-      ctx.lineWidth=1.3/scale;ctx.strokeStyle='#1a1a1a';ctx.stroke();
-      if(scale>1.0){
+      ctx.fillStyle=onPath?'#1a1a1a':'#ffffff';ctx.fill();
+      ctx.lineWidth=(onPath?2:1.3)/scale;ctx.strokeStyle='#1a1a1a';ctx.stroke();
+      const showThis = showLabels && (scale>1.0 || onPath);
+      if(showThis){
         const disp=n.label||n.id;
         const label=disp.length>30?disp.slice(0,29)+'…':disp;
-        ctx.font=`${Math.max(2.5,10/scale)}px 'SF Mono',monospace`;
+        ctx.font=`${onPath?'bold ':''}${Math.max(2.5,10/scale)}px 'SF Mono',monospace`;
         ctx.fillStyle='#1a1a1a';ctx.textAlign='center';ctx.textBaseline='top';
         ctx.fillText(label,n.x,n.y+r+1.5/scale);
       }
@@ -1102,7 +1116,7 @@ function refreshGraph(){
   document.getElementById('graph-stats').textContent=graphLinks.length+' edges · '+nodes.length+' nodes';
   // keep whole graph framed during streaming (debounced)
   if(_fitPending)clearTimeout(_fitPending);
-  _fitPending=setTimeout(()=>zoomFit(),250);
+  _fitPending=setTimeout(()=>{ zoomFit(); if(pathOn){ const b=computeLongestPath(); _pathNodes=new Set(b.nodes); _pathLinks=new Set(b.links);} },250);
 }
 
 // Normalize entity names so case/whitespace/punctuation variants map to one node.
@@ -1152,6 +1166,78 @@ function positionHover(){
 function hideHover(){document.getElementById('hovercard').classList.add('hidden')}
 function zoomFit(){if(Graph && graphLinks.length)Graph.zoomToFit(350,50)}
 
+function toggleLabels(){
+  showLabels=!showLabels;
+  document.getElementById('labels-toggle').textContent='labels: '+(showLabels?'on':'off');
+  if(Graph)Graph.nodeCanvasObject(Graph.nodeCanvasObject()); // force re-render
+}
+
+// Longest simple path over the directed graph (treated as undirected for reach).
+// Graph can be cyclic, so we run a bounded DFS from each node and keep the best.
+function computeLongestPath(){
+  const adj=new Map();   // nodeId -> [{to, link}]
+  for(const l of graphLinks){
+    if(l.fact && l.fact.is_duplicate) continue;
+    const s=(typeof l.source==='object')?l.source.id:l.source;
+    const t=(typeof l.target==='object')?l.target.id:l.target;
+    if(s===t) continue;
+    if(!adj.has(s))adj.set(s,[]);
+    if(!adj.has(t))adj.set(t,[]);
+    adj.get(s).push({to:t,link:l});
+    adj.get(t).push({to:s,link:l}); // undirected traversal for longer chains
+  }
+  const nodes=[...adj.keys()];
+  if(!nodes.length)return {nodes:[],links:[]};
+  let best={nodes:[],links:[]};
+  const CAP=2000; let steps=0;
+  function dfs(cur, visited, pathNodes, pathLinks){
+    if(steps++>CAP*nodes.length) return;
+    if(pathNodes.length>best.nodes.length) best={nodes:[...pathNodes],links:[...pathLinks]};
+    for(const {to,link} of (adj.get(cur)||[])){
+      if(visited.has(to))continue;
+      visited.add(to);pathNodes.push(to);pathLinks.push(link);
+      dfs(to,visited,pathNodes,pathLinks);
+      visited.delete(to);pathNodes.pop();pathLinks.pop();
+    }
+  }
+  // start DFS from higher-degree nodes first (more likely on long paths), cap fanout
+  nodes.sort((a,b)=>(adj.get(b).length)-(adj.get(a).length));
+  const starts=nodes.slice(0, Math.min(nodes.length, 40));
+  for(const s of starts){
+    dfs(s,new Set([s]),[s],[]);
+  }
+  return best;
+}
+
+function toggleLongestPath(){
+  pathOn=!pathOn;
+  const tEl=document.getElementById('path-toggle');
+  const bar=document.getElementById('path-bar');
+  if(!pathOn){
+    _pathNodes=new Set();_pathLinks=new Set();
+    tEl.textContent='longest path';bar.classList.add('hidden');
+    if(Graph)Graph.nodeColor(Graph.nodeColor());
+    return;
+  }
+  const best=computeLongestPath();
+  if(!best.nodes.length){bar.classList.remove('hidden');bar.innerHTML='<span class="ptitle">longest path</span>(no path)';return;}
+  _pathNodes=new Set(best.nodes);
+  _pathLinks=new Set(best.links);
+  tEl.textContent='longest path: on';
+  // Render the chain at top: node -> [predicate] -> node ...
+  const labelOf=id=>{const n=graphNodes.get(id);return n?(n.label||n.id):id;};
+  let html='<span class="ptitle">longest path · '+best.nodes.length+' nodes</span>';
+  for(let i=0;i<best.nodes.length;i++){
+    html+='<span class="pn">'+esc(labelOf(best.nodes[i]))+'</span>';
+    if(i<best.links.length){
+      const f=best.links[i].fact||{};
+      html+='<span class="parrow">→</span><span class="pe">'+esc(f.predicate||'')+'</span><span class="parrow">→</span>';
+    }
+  }
+  bar.innerHTML=html;bar.classList.remove('hidden');
+  if(Graph)Graph.nodeColor(Graph.nodeColor()); // re-render highlight
+}
+
 // ---------- File list ----------
 function renderFileList(files){
   const fl=document.getElementById('filelist');
@@ -1185,6 +1271,9 @@ let eventAbort=null;       // AbortController for the current event stream
 
 function resetGraphView(){
   jsonlLines=[];graphNodes=new Map();graphLinks=[];
+  _pathNodes=new Set();_pathLinks=new Set();pathOn=false;
+  document.getElementById('path-toggle').textContent='longest path';
+  document.getElementById('path-bar').classList.add('hidden');
   document.getElementById('graph-empty').classList.add('hidden');
   document.getElementById('graph-overlay').classList.remove('hidden');
   document.getElementById('results-section').classList.remove('hidden');

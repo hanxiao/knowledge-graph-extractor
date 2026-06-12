@@ -119,7 +119,10 @@ def reconcile_on_startup():
         m["job_id"] = p.name
         st = m.get("status")
         if st in ("running", "queued", "pausing"):
+            # interrupted by a deploy/restart -> resumable, and prioritized for
+            # auto-backfill (preempted tier) so it resumes ahead of bulk paused jobs.
             m["status"] = "paused"
+            m["preempted"] = True
         # 'held'/'paused'/'done'/'failed' keep their state
         _jobs[p.name] = m
         save_meta(p.name)
