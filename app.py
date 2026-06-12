@@ -682,6 +682,34 @@ async def api_create_job(request: Request):
     return {"job_id": job_id}
 
 
+@app.post("/api/jobs-text")
+async def api_create_job_text(
+    file: UploadFile = File(...),
+    k: int = Form(1),
+    prompt: str = Form(DEFAULT_PROMPT),
+    dedup_threshold: float = Form(0.90),
+    dedup_field: str = Form("triple"),
+    dedup_model: str = Form(""),
+):
+    # Large pasted text arrives as a plain-text file upload (multipart), avoiding
+    # JSON body size/encoding limits. Stored exactly like the JSON text path.
+    raw = await file.read()
+    text = raw.decode("utf-8", "ignore")
+    meta = {
+        "source_kind": "text",
+        "source_name": "pasted text",
+        "title": "pasted text",
+        "k": int(k),
+        "prompt": prompt,
+        "dedup_threshold": float(dedup_threshold),
+        "dedup_field": dedup_field,
+        "dedup_model": dedup_model,
+    }
+    src = json.dumps({"url": "", "text": text}).encode()
+    job_id = await J.create_job(meta, src, "input.json")
+    return {"job_id": job_id}
+
+
 @app.post("/api/jobs-zip")
 async def api_create_job_zip(
     file: UploadFile = File(...),
@@ -1461,6 +1489,16 @@ async function extract(){
       fd.append('k',k);fd.append('prompt',prompt);
       fd.append('dedup_threshold',threshold);fd.append('dedup_field',dedupField);fd.append('dedup_model',dedupModel);
       const r=await fetch(API_BASE+'/api/jobs-zip',{method:'POST',body:fd});
+      job_id=(await r.json()).job_id;
+    }else if(currentTab==='text' && document.getElementById('text-paste').value.length>20000){
+      // Large paste -> send as a plain-text file upload (multipart), avoiding
+      // JSON body size/encoding limits. Full text is preserved + chunked server-side.
+      const txt=document.getElementById('text-paste').value;
+      const fd=new FormData();
+      fd.append('file',new File([txt],'pasted.txt',{type:'text/plain'}));
+      fd.append('k',k);fd.append('prompt',prompt);
+      fd.append('dedup_threshold',threshold);fd.append('dedup_field',dedupField);fd.append('dedup_model',dedupModel);
+      const r=await fetch(API_BASE+'/api/jobs-text',{method:'POST',body:fd});
       job_id=(await r.json()).job_id;
     }else{
       const payload={k,prompt,dedup_threshold:threshold,dedup_field:dedupField,dedup_model:dedupModel};
