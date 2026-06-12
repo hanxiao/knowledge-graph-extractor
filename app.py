@@ -886,7 +886,7 @@ nav .gh:hover{color:var(--text)}
 .sidebar.collapsed{margin-left:-331px}
 .main{flex:1;position:relative;background:var(--bg);overflow:hidden;min-width:0}
 /* collapse handle, sits on the sidebar's right edge */
-.sidebar-toggle{position:absolute;top:8px;left:302px;z-index:20;width:22px;height:30px;border:1px solid var(--border);background:var(--bg);color:var(--text2);cursor:pointer;font-family:var(--mono);font-size:13px;line-height:1;display:flex;align-items:center;justify-content:center;padding:0;transition:left .2s ease}
+.sidebar-toggle{position:absolute;top:8px;left:302px;z-index:40;width:22px;height:30px;border:1px solid var(--border);background:var(--bg);color:var(--text2);cursor:pointer;font-family:var(--mono);font-size:13px;line-height:1;display:flex;align-items:center;justify-content:center;padding:0;transition:left .2s ease}
 .sidebar-toggle:hover{background:var(--bg3);color:var(--text)}
 /* collapsed: handle hugs the far-left edge */
 .layout.collapsed .sidebar-toggle{left:0;border-left:none}
