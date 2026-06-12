@@ -877,9 +877,14 @@ nav .tag{font-size:11px;color:var(--text3);font-family:var(--mono)}
 nav .gh{margin-left:auto;color:var(--text2);display:flex;align-items:center;transition:color .12s}
 nav .gh:hover{color:var(--text)}
 
-.layout{display:flex;height:calc(100vh - 42px)}
-.sidebar{width:330px;min-width:330px;border-right:1px solid var(--border);padding:16px;overflow-y:auto;display:flex;flex-direction:column;gap:14px;background:var(--bg2)}
-.main{flex:1;position:relative;background:var(--bg);overflow:hidden}
+.layout{display:flex;height:calc(100vh - 42px);position:relative}
+.sidebar{width:330px;min-width:330px;border-right:1px solid var(--border);padding:16px;overflow-y:auto;display:flex;flex-direction:column;gap:14px;background:var(--bg2);transition:margin-left .2s ease}
+.sidebar.collapsed{margin-left:-331px}
+.main{flex:1;position:relative;background:var(--bg);overflow:hidden;min-width:0}
+/* collapse handle, sits on the sidebar's right edge */
+.sidebar-toggle{position:absolute;top:8px;left:330px;z-index:20;width:20px;height:30px;border:1px solid var(--border);border-left:none;background:var(--bg);color:var(--text2);cursor:pointer;font-family:var(--mono);font-size:13px;line-height:1;display:flex;align-items:center;justify-content:center;padding:0;transition:left .2s ease}
+.sidebar-toggle:hover{background:var(--bg3);color:var(--text)}
+.layout.collapsed .sidebar-toggle{left:0}
 
 .section-title{font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
 .prompt-toggle{cursor:pointer;user-select:none}
@@ -987,6 +992,14 @@ input[type="range"]:disabled::-webkit-slider-thumb{background:var(--text3)}
 .busy-banner{position:fixed;top:42px;left:0;right:0;background:var(--bg3);border-bottom:1px solid var(--border);color:var(--text);font-size:11px;padding:5px 18px;z-index:99;display:flex;align-items:center;gap:8px}
 .busy-dot{width:7px;height:7px;border-radius:0;background:var(--black);animation:pulse 1.5s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* Mobile: sidebar overlays the graph instead of squishing it */
+@media (max-width:760px){
+  .sidebar{position:absolute;top:0;bottom:0;left:0;z-index:30;width:86vw;min-width:0;max-width:340px;box-shadow:4px 0 16px rgba(0,0,0,.18)}
+  .sidebar.collapsed{margin-left:calc(-86vw - 2px)}
+  .sidebar-toggle{left:86vw}
+  .layout.collapsed .sidebar-toggle{left:0}
+}
 </style>
 </head>
 <body>
@@ -1001,7 +1014,13 @@ input[type="range"]:disabled::-webkit-slider-thumb{background:var(--text3)}
 </nav>
 
 <div class="layout">
-  <div class="sidebar">
+  <button class="sidebar-toggle" id="sidebar-toggle" onclick="toggleSidebar()" title="Toggle panel" aria-label="Toggle panel">‹</button>
+  <div class="sidebar" id="sidebar">
+    <div class="section hidden" id="jobs-section">
+      <div class="section-title">Jobs</div>
+      <div class="jobs-list" id="jobs-list"></div>
+    </div>
+
     <div class="section">
       <div class="section-title">Source</div>
       <div class="tabs">
@@ -1067,11 +1086,6 @@ input[type="range"]:disabled::-webkit-slider-thumb{background:var(--text3)}
     </div>
 
     <button class="btn" id="extract-btn" onclick="extract()">Extract</button>
-
-    <div class="section hidden" id="jobs-section">
-      <div class="section-title">Jobs</div>
-      <div class="jobs-list" id="jobs-list"></div>
-    </div>
 
     <div class="section hidden" id="files-section">
       <div class="section-title" style="display:flex;justify-content:space-between"><span>Files</span><span id="files-progress" style="font-family:var(--mono);color:var(--text2)"></span></div>
@@ -1147,6 +1161,21 @@ function togglePrompt(){
   const b=document.getElementById('prompt-body');
   const open=b.classList.toggle('hidden')===false;
   document.getElementById('prompt-caret').textContent=open?'▾':'▸';
+}
+
+function toggleSidebar(){
+  const sb=document.getElementById('sidebar');
+  const collapsed=sb.classList.toggle('collapsed');
+  document.querySelector('.layout').classList.toggle('collapsed',collapsed);
+  document.getElementById('sidebar-toggle').textContent=collapsed?'›':'‹';
+  // graph reflows to the freed space
+  setTimeout(()=>{if(Graph){const m=document.querySelector('.main');Graph.width(m.clientWidth).height(m.clientHeight);zoomFit();}},220);
+}
+// Default-collapse on small screens so the graph isn't squeezed.
+if(window.matchMedia('(max-width:760px)').matches){
+  const sb=document.getElementById('sidebar');sb.classList.add('collapsed');
+  document.querySelector('.layout').classList.add('collapsed');
+  document.getElementById('sidebar-toggle').textContent='›';
 }
 
 document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
