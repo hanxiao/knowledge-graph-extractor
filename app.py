@@ -760,6 +760,9 @@ nav .gh:hover{color:var(--text)}
 .main{flex:1;position:relative;background:var(--bg);overflow:hidden}
 
 .section-title{font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+.prompt-toggle{cursor:pointer;user-select:none}
+.prompt-toggle:hover{color:var(--text)}
+.prompt-toggle span{display:inline-block;width:10px}
 input[type="text"],textarea{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:7px 9px;border-radius:0;font-size:12px;font-family:var(--mono)}
 input:focus,textarea:focus{outline:none;box-shadow:inset 0 0 0 1px var(--border)}
 textarea{font-family:var(--mono);font-size:11px;line-height:1.5;resize:vertical}
@@ -891,9 +894,11 @@ input[type="range"]:disabled::-webkit-slider-thumb{background:var(--text3)}
     </div>
 
     <div class="section">
-      <div class="section-title">Extraction Prompt</div>
-      <textarea id="prompt-edit" rows="5"></textarea>
-      <div style="margin-top:4px;text-align:right"><button class="btn-sm" onclick="resetPrompt()">Reset</button></div>
+      <div class="section-title prompt-toggle" id="prompt-toggle" onclick="togglePrompt()"><span id="prompt-caret">▸</span> Extraction Prompt</div>
+      <div id="prompt-body" class="hidden">
+        <textarea id="prompt-edit" rows="5"></textarea>
+        <div style="margin-top:4px;text-align:right"><button class="btn-sm" onclick="resetPrompt()">Reset</button></div>
+      </div>
     </div>
 
     <div class="section">
@@ -1004,6 +1009,11 @@ document.getElementById('dedup-model').addEventListener('change',function(){
 });
 
 function resetPrompt(){document.getElementById('prompt-edit').value=defaultPrompt}
+function togglePrompt(){
+  const b=document.getElementById('prompt-body');
+  const open=b.classList.toggle('hidden')===false;
+  document.getElementById('prompt-caret').textContent=open?'▾':'▸';
+}
 
 document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
   const tab=t.dataset.tab;currentTab=tab;
