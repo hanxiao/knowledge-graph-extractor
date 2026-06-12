@@ -886,9 +886,10 @@ nav .gh:hover{color:var(--text)}
 .sidebar.collapsed{margin-left:-331px}
 .main{flex:1;position:relative;background:var(--bg);overflow:hidden;min-width:0}
 /* collapse handle, sits on the sidebar's right edge */
-.sidebar-toggle{position:absolute;top:8px;left:330px;z-index:20;width:20px;height:30px;border:1px solid var(--border);border-left:none;background:var(--bg);color:var(--text2);cursor:pointer;font-family:var(--mono);font-size:13px;line-height:1;display:flex;align-items:center;justify-content:center;padding:0;transition:left .2s ease}
+.sidebar-toggle{position:absolute;top:8px;left:302px;z-index:20;width:22px;height:30px;border:1px solid var(--border);background:var(--bg);color:var(--text2);cursor:pointer;font-family:var(--mono);font-size:13px;line-height:1;display:flex;align-items:center;justify-content:center;padding:0;transition:left .2s ease}
 .sidebar-toggle:hover{background:var(--bg3);color:var(--text)}
-.layout.collapsed .sidebar-toggle{left:0}
+/* collapsed: handle hugs the far-left edge */
+.layout.collapsed .sidebar-toggle{left:0;border-left:none}
 
 .section-title{font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
 .prompt-toggle{cursor:pointer;user-select:none}
@@ -1001,7 +1002,7 @@ input[type="range"]:disabled::-webkit-slider-thumb{background:var(--text3)}
 @media (max-width:760px){
   .sidebar{position:absolute;top:0;bottom:0;left:0;z-index:30;width:86vw;min-width:0;max-width:340px;box-shadow:4px 0 16px rgba(0,0,0,.18)}
   .sidebar.collapsed{margin-left:calc(-86vw - 2px)}
-  .sidebar-toggle{left:86vw}
+  .sidebar-toggle{left:calc(min(86vw, 340px) - 24px)}
   .layout.collapsed .sidebar-toggle{left:0}
 }
 </style>
