@@ -1015,6 +1015,7 @@ input[type="range"]:disabled::-webkit-slider-thumb{background:var(--text3)}
 .path-bar .parrow{color:var(--text3);margin:0 2px}
 .path-bar .ptitle{display:block;font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px}
 .graph-badge{background:var(--bg);border:1px solid var(--border);border-radius:0;padding:4px 9px;font-size:10px;font-family:var(--mono);color:var(--text);text-transform:uppercase;letter-spacing:.5px}
+.graph-badge.on{background:var(--black);color:var(--bg);border-color:var(--black)}
 
 /* HOVER CARD */
 .hovercard{position:absolute;z-index:50;background:var(--bg);border:1px solid var(--border);border-radius:0;padding:11px;width:320px;box-shadow:4px 4px 0 rgba(26,26,26,.12);pointer-events:none;font-size:12px}
@@ -1152,7 +1153,8 @@ input[type="range"]:disabled::-webkit-slider-thumb{background:var(--text3)}
     <div class="graph-overlay hidden" id="graph-overlay">
       <span class="graph-badge" id="graph-stats">0 edges</span>
       <span class="graph-badge" style="cursor:pointer" onclick="zoomFit()">fit</span>
-      <span class="graph-badge" style="cursor:pointer" id="labels-toggle" onclick="toggleLabels()">labels: on</span>
+      <span class="graph-badge on" style="cursor:pointer" id="node-labels-toggle" onclick="toggleNodeLabels()">node labels</span>
+      <span class="graph-badge" style="cursor:pointer" id="edge-labels-toggle" onclick="toggleEdgeLabels()">edge labels</span>
       <span class="graph-badge" style="cursor:pointer" id="path-toggle" onclick="toggleLongestPath()">longest path</span>
     </div>
     <div class="path-bar hidden" id="path-bar"></div>
@@ -1169,7 +1171,8 @@ let jsonlLines=[];           // raw jsonl strings for download
 let graphNodes=new Map();    // id -> node
 let graphLinks=[];           // link objects, each carries .fact
 let Graph=null;
-let showLabels=true;         // toggle all node text labels
+let showNodeLabels=true;     // toggle node text labels
+let showEdgeLabels=false;    // toggle edge (predicate) text labels
 let _pathNodes=new Set();    // node ids on the highlighted longest path
 let _pathLinks=new Set();    // link objects on the highlighted longest path
 let pathOn=false;
@@ -1287,7 +1290,7 @@ function initGraph(){
       ctx.beginPath();ctx.arc(n.x,n.y,r,0,2*Math.PI);
       ctx.fillStyle=onPath?'#1a1a1a':'#ffffff';ctx.fill();
       ctx.lineWidth=(onPath?2:1.3)/scale;ctx.strokeStyle='#1a1a1a';ctx.stroke();
-      const showThis = showLabels && (scale>1.0 || onPath);
+      const showThis = showNodeLabels && (scale>1.0 || onPath);
       if(showThis){
         const disp=n.label||n.id;
         const label=disp.length>30?disp.slice(0,29)+'…':disp;
@@ -1295,6 +1298,26 @@ function initGraph(){
         ctx.fillStyle='#1a1a1a';ctx.textAlign='center';ctx.textBaseline='top';
         ctx.fillText(label,n.x,n.y+r+1.5/scale);
       }
+    })
+    .linkCanvasObjectMode(()=> showEdgeLabels ? 'after' : undefined)
+    .linkCanvasObject((l,ctx,scale)=>{
+      if(!showEdgeLabels)return;
+      const onPath=_pathLinks.has(l);
+      if(scale<=1.2 && !onPath)return;
+      const s=(typeof l.source==='object')?l.source:null;
+      const t=(typeof l.target==='object')?l.target:null;
+      if(!s||!t)return;
+      const f=l.fact||{};const pred=f.predicate||'';
+      if(!pred)return;
+      const mx=(s.x+t.x)/2, my=(s.y+t.y)/2;
+      const disp=pred.length>24?pred.slice(0,23)+'…':pred;
+      ctx.font=`${onPath?'bold ':''}${Math.max(2,8/scale)}px 'SF Mono',monospace`;
+      ctx.textAlign='center';ctx.textBaseline='middle';
+      const w=ctx.measureText(disp).width, pad=2/scale;
+      ctx.fillStyle='rgba(255,255,255,0.82)';
+      ctx.fillRect(mx-w/2-pad,my-(5/scale),w+pad*2,10/scale);
+      ctx.fillStyle=onPath?'#1a1a1a':'rgba(26,26,26,0.65)';
+      ctx.fillText(disp,mx,my);
     })
     .cooldownTicks(90)
     .onEngineStop(()=>zoomFit())
@@ -1377,16 +1400,24 @@ function positionHover(){
 function hideHover(){document.getElementById('hovercard').classList.add('hidden')}
 function zoomFit(){if(Graph && graphLinks.length)Graph.zoomToFit(350,50)}
 
-function toggleLabels(){
-  showLabels=!showLabels;
-  document.getElementById('labels-toggle').textContent='labels: '+(showLabels?'on':'off');
+function toggleNodeLabels(){
+  showNodeLabels=!showNodeLabels;
+  document.getElementById('node-labels-toggle').classList.toggle('on',showNodeLabels);
   if(Graph)Graph.nodeCanvasObject(Graph.nodeCanvasObject()); // force re-render
 }
+function toggleEdgeLabels(){
+  showEdgeLabels=!showEdgeLabels;
+  document.getElementById('edge-labels-toggle').classList.toggle('on',showEdgeLabels);
+  if(Graph){
+    Graph.linkCanvasObjectMode(()=> showEdgeLabels ? 'after' : undefined);
+    Graph.nodeCanvasObject(Graph.nodeCanvasObject()); // force re-render
+  }
+}
 
-// Longest simple path over the directed graph (treated as undirected for reach).
+// Longest simple path following edge DIRECTION (subject -> object only).
 // Graph can be cyclic, so we run a bounded DFS from each node and keep the best.
 function computeLongestPath(){
-  const adj=new Map();   // nodeId -> [{to, link}]
+  const adj=new Map();   // nodeId -> [{to, link}] (directed: source -> target)
   for(const l of graphLinks){
     if(l.fact && l.fact.is_duplicate) continue;
     const s=(typeof l.source==='object')?l.source.id:l.source;
@@ -1394,8 +1425,7 @@ function computeLongestPath(){
     if(s===t) continue;
     if(!adj.has(s))adj.set(s,[]);
     if(!adj.has(t))adj.set(t,[]);
-    adj.get(s).push({to:t,link:l});
-    adj.get(t).push({to:s,link:l}); // undirected traversal for longer chains
+    adj.get(s).push({to:t,link:l}); // directed traversal only
   }
   const nodes=[...adj.keys()];
   if(!nodes.length)return {nodes:[],links:[]};
@@ -1426,15 +1456,15 @@ function toggleLongestPath(){
   const bar=document.getElementById('path-bar');
   if(!pathOn){
     _pathNodes=new Set();_pathLinks=new Set();
-    tEl.textContent='longest path';bar.classList.add('hidden');
+    tEl.classList.remove('on');bar.classList.add('hidden');
     if(Graph)Graph.nodeColor(Graph.nodeColor());
     return;
   }
   const best=computeLongestPath();
-  if(!best.nodes.length){bar.classList.remove('hidden');bar.innerHTML='<span class="ptitle">longest path</span>(no path)';return;}
+  if(!best.nodes.length){pathOn=false;bar.classList.remove('hidden');bar.innerHTML='<span class="ptitle">longest path</span>(no path)';return;}
   _pathNodes=new Set(best.nodes);
   _pathLinks=new Set(best.links);
-  tEl.textContent='longest path: on';
+  tEl.classList.add('on');
   // Render the chain at top: node -> [predicate] -> node ...
   const labelOf=id=>{const n=graphNodes.get(id);return n?(n.label||n.id):id;};
   let html='<span class="ptitle">longest path · '+best.nodes.length+' nodes</span>';
@@ -1483,7 +1513,7 @@ let eventAbort=null;       // AbortController for the current event stream
 function resetGraphView(){
   jsonlLines=[];graphNodes=new Map();graphLinks=[];
   _pathNodes=new Set();_pathLinks=new Set();pathOn=false;
-  document.getElementById('path-toggle').textContent='longest path';
+  document.getElementById('path-toggle').classList.remove('on');
   document.getElementById('path-bar').classList.add('hidden');
   document.getElementById('graph-empty').classList.add('hidden');
   document.getElementById('graph-overlay').classList.remove('hidden');
