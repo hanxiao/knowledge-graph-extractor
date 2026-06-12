@@ -1055,11 +1055,6 @@ input[type="range"]:disabled::-webkit-slider-thumb{background:var(--text3)}
 <div class="layout">
   <button class="sidebar-toggle" id="sidebar-toggle" onclick="toggleSidebar()" title="Toggle panel" aria-label="Toggle panel">‹</button>
   <div class="sidebar" id="sidebar">
-    <div class="section hidden" id="jobs-section">
-      <div class="section-title">Jobs</div>
-      <div class="jobs-list" id="jobs-list"></div>
-    </div>
-
     <div class="newjob-box">
     <div class="newjob-title">New Job</div>
     <div class="section">
@@ -1127,6 +1122,11 @@ input[type="range"]:disabled::-webkit-slider-thumb{background:var(--text3)}
     </div>
 
     <button class="btn" id="extract-btn" onclick="extract()">Extract</button>
+    </div>
+
+    <div class="section hidden" id="jobs-section">
+      <div class="section-title">Jobs</div>
+      <div class="jobs-list" id="jobs-list"></div>
     </div>
 
     <div class="section hidden" id="files-section">
