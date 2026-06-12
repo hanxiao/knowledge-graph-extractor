@@ -715,6 +715,22 @@ async def api_job_events(job_id: str):
 
 DEFAULT_ZIP_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "jina-corpus.zip")
 DEFAULT_ZIP_NAME = "jina-corpus.zip"
+ASSETS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
+
+@app.get("/assets/{name}")
+async def serve_asset(name: str):
+    safe = os.path.basename(name)
+    path = os.path.join(ASSETS_DIR, safe)
+    if not os.path.isfile(path):
+        return HTMLResponse("not found", status_code=404)
+    return FileResponse(path)
+
+@app.get("/favicon.ico")
+async def favicon_ico():
+    p = os.path.join(os.path.dirname(os.path.abspath(__file__)), "favicon.ico")
+    if os.path.isfile(p):
+        return FileResponse(p)
+    return HTMLResponse("not found", status_code=404)
 
 @app.get("/api/default-prompt")
 async def get_default_prompt():
@@ -757,7 +773,34 @@ HTML_PAGE = r"""<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>KG</title>
+<title>Knowledge Graph Extractor &mdash; Qwen3.6-35B-A3B-MTP on a single L4</title>
+<meta name="description" content="Turn any document or a whole zip into an interactive knowledge graph, using a self-hosted Qwen3.6-35B-A3B-MTP LLM on a single NVIDIA L4. Entity-linked triples, semantic dedup, live force-directed graph, JSONL export.">
+<meta name="keywords" content="knowledge graph, LLM, information extraction, entity extraction, triples, Qwen3, llama.cpp, embeddings, jina, force graph, NVIDIA L4, self-hosted">
+<meta name="author" content="Han Xiao">
+<link rel="canonical" href="https://hanxiao.io/knowledge-graph">
+<meta name="theme-color" content="#1a1a1a">
+<!-- favicons -->
+<link rel="icon" type="image/png" sizes="32x32" href="https://hanxiao.io/knowledge-graph/assets/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="https://hanxiao.io/knowledge-graph/assets/favicon-16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://hanxiao.io/knowledge-graph/assets/favicon-180.png">
+<link rel="icon" href="https://hanxiao.io/knowledge-graph/assets/favicon.png">
+<!-- Open Graph -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="hanxiao.io">
+<meta property="og:title" content="Knowledge Graph Extractor">
+<meta property="og:description" content="Turn any document or a whole zip into an interactive knowledge graph, on a single NVIDIA L4. Entity-linked triples, semantic dedup, live force-directed graph, JSONL export.">
+<meta property="og:url" content="https://hanxiao.io/knowledge-graph">
+<meta property="og:image" content="https://hanxiao.io/knowledge-graph/assets/og-banner.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Knowledge Graph Extractor &mdash; interactive entity graph extracted from a document">
+<!-- Twitter -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@hxiao">
+<meta name="twitter:creator" content="@hxiao">
+<meta name="twitter:title" content="Knowledge Graph Extractor">
+<meta name="twitter:description" content="Any document &rarr; an interactive knowledge graph, on a single NVIDIA L4. Qwen3.6-35B-A3B-MTP.">
+<meta name="twitter:image" content="https://hanxiao.io/knowledge-graph/assets/og-banner.png">
 <script src="https://unpkg.com/force-graph@1.43.5/dist/force-graph.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -896,7 +939,7 @@ input[type="range"]:disabled::-webkit-slider-thumb{background:var(--text3)}
   <div class="logo">KG</div>
   <span class="sep">|</span>
   <span class="tag">qwen3.6-35b-a3b-mtp / nvidia l4 24gb</span>
-  <a class="gh" href="https://github.com/hanxiao/qwen-3.6-35b-a3b-mtp-l4-knowledge-graph" target="_blank" rel="noopener" title="Source on GitHub" aria-label="GitHub">
+  <a class="gh" href="https://github.com/hanxiao/knowledge-graph-extractor" target="_blank" rel="noopener" title="Source on GitHub" aria-label="GitHub">
     <svg viewBox="0 0 16 16" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
   </a>
 </nav>

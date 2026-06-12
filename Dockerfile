@@ -17,6 +17,8 @@ RUN pip install --no-cache-dir \
 COPY app.py .
 COPY jobs.py .
 COPY jina-corpus.zip .
+COPY favicon.ico .
+COPY assets/ ./assets/
 
 EXPOSE 3000
 

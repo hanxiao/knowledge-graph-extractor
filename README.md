@@ -3,12 +3,14 @@
 Turn any document (or a whole zip of them) into an interactive knowledge graph,
 using a self-hosted LLM on a single NVIDIA L4 24GB GPU.
 
+**Live demo: https://hanxiao.io/knowledge-graph**
+
+[![Knowledge Graph Extractor](assets/hero.png)](https://hanxiao.io/knowledge-graph)
+
 Each extracted fact is one graph edge: a `(subject) --[predicate]--> (object)`
 triple plus a self-contained title, description, verbatim evidence span,
 confidence, tags, and the source file it came from. Facts stream into a live
 force-directed graph; hover any edge to see the full fact card.
-
-**Live demo:** https://hanxiao.io/knowledge-graph
 
 ## What it does
 
@@ -58,8 +60,8 @@ task (see [`autoresearch/`](autoresearch/REPORT.md)).
 ## Quick start
 
 ```bash
-git clone https://github.com/hanxiao/qwen-3.6-35b-a3b-mtp-l4-knowledge-graph.git
-cd qwen-3.6-35b-a3b-mtp-l4-knowledge-graph
+git clone https://github.com/hanxiao/knowledge-graph-extractor.git
+cd knowledge-graph-extractor
 
 # Jina API key (free at https://jina.ai/api-key, used for URL-to-markdown)
 cp .env.example .env
