@@ -1,103 +1,130 @@
-# KI Extractor
+# Knowledge Graph Extractor — Qwen3.6-35B-A3B-MTP on a single L4
 
-Extract structured Knowledge Indicators (KIs) from any document using a self-hosted LLM. Each KI is an atomic fact triple (subject, predicate, object) with evidence span, confidence score, and tags.
+Turn any document (or a whole zip of them) into an interactive knowledge graph,
+using a self-hosted LLM on a single NVIDIA L4 24GB GPU.
 
-![demo](assets/demo.gif)
+Each extracted fact is one graph edge: a `(subject) --[predicate]--> (object)`
+triple plus a self-contained title, description, verbatim evidence span,
+confidence, tags, and the source file it came from. Facts stream into a live
+force-directed graph; hover any edge to see the full fact card.
+
+**Live demo:** https://hanxiao.io/knowledge-graph
 
 ## What it does
 
-1. Feed a URL or paste text
-2. LLM extracts 0-15 structured facts per round, multiple rounds with different seeds for coverage
-3. Real-time semantic dedup via [jina-embeddings-v5-text-nano](https://huggingface.co/jinaai/jina-embeddings-v5-text-nano) removes duplicate facts across rounds
-4. Stream results as they arrive with live stats (tok/s, unique/total facts, context usage)
+1. **Input** — paste text, give a URL (fetched to markdown via Jina Reader), or
+   upload a `.zip` of documents (txt, md, html, pdf, docx, json, csv, code...).
+2. **Extract** — the LLM emits 0-15 atomic relationship facts per round, with a
+   graph-fit prompt that forces canonical entity/value `subject`/`object` so
+   nodes actually connect instead of becoming prose dead-ends.
+3. **Dedup** (optional, on by default) — real-time semantic dedup via
+   [jina-embeddings-v5-text-nano](https://huggingface.co/jinaai/jina-embeddings-v5-text-nano)
+   on CPU removes duplicate facts across rounds *and across files* in a zip.
+4. **Visualize** — every unique fact becomes one edge in a force-directed graph
+   (node names normalized by lowercase/trim so variants merge). Hover for the
+   card. Download the full result as JSONL for downstream graph building.
 
-Inspired by the [Knowledge Indicators concept from Elastic](https://www.elastic.co/search-labs/blog/pre-computed-context-llm-agent-costs) for pre-computing agent context.
+## Job queue (multi-user)
+
+The L4 has one llama slot, so requests are serialized by a single-slot scheduler
+(modeled on [searchbox](https://github.com/hanxiao/searchbox)):
+
+- **One job at a time.** Others queue and wait.
+- **Preemption.** A new submission preempts the running job; the preempted job is
+  persisted and returns to a backfill pool.
+- **Auto-backfill.** When the slot idles, the oldest paused job resumes from
+  exactly where it left off (already-done files skipped, dedup vectors rebuilt
+  from the persisted JSONL).
+- **Persistence.** Every job (meta + facts.jsonl + input) lives under `data/jobs/`
+  (mounted as a Docker volume), so the job list, JSONL reload, and resume all
+  survive restarts and container rebuilds.
+- **Job panel.** See all requests, reload any past job's JSONL into the graph,
+  and pause / resume / delete per job.
 
 ## Stack
 
 | Component | What | Port |
 |-----------|------|------|
-| **llama-server** | [llama.cpp](https://github.com/ggml-org/llama.cpp) with CUDA, serves Qwen3.6-35B-A3B via OpenAI-compatible API | 8080 |
-| **ki-extractor** | FastAPI app with extraction UI + jina-v5-nano dedup on CPU | 3000 |
+| **llama-server** | [llama.cpp](https://github.com/ggml-org/llama.cpp) with CUDA, serves Qwen3.6-35B-A3B via an OpenAI-compatible API | 8080 |
+| **app** | FastAPI app: extraction + job scheduler + jina-v5-nano dedup (CPU) + UI | 3000 |
 
 ## Hardware
 
-Single NVIDIA L4 24GB GPU (e.g. GCP `g2-standard-8`). The model runs in **Q3_K_XL** quantization with MTP (Multi-Token Prediction) speculative decoding — benchmarked at ~76 tok/s decode, +34% over Q4_K_XL with no quality loss on this task (see [`autoresearch/`](autoresearch/REPORT.md)).
+Single NVIDIA L4 24GB GPU (e.g. GCP `g2-standard-8`). The model runs in
+**Q3_K_XL** quantization with MTP (Multi-Token Prediction) speculative decoding —
+benchmarked at ~76 tok/s decode, +34% over Q4_K_XL with no quality loss on this
+task (see [`autoresearch/`](autoresearch/REPORT.md)).
 
 ## Quick start
 
 ```bash
-git clone https://github.com/hanxiao/ki-extractor.git
-cd ki-extractor
+git clone https://github.com/hanxiao/qwen-3.6-35b-a3b-mtp-l4-knowledge-graph.git
+cd qwen-3.6-35b-a3b-mtp-l4-knowledge-graph
 
-# Set your Jina API key (free at https://jina.ai/api-key, used for URL-to-markdown)
+# Jina API key (free at https://jina.ai/api-key, used for URL-to-markdown)
 cp .env.example .env
 # edit .env and add your JINA_API_KEY
 
-# On a fresh GCP L4 instance, run the one-shot setup:
+# On a fresh GCP L4 instance, one-shot setup:
 bash scripts/setup.sh
 ```
 
 This downloads the model (~17GB), pulls Docker images, and starts both services.
-
 Once running, open `http://<your-ip>:3000`.
 
 ## Manual setup
 
-If you already have Docker + NVIDIA Container Toolkit:
+If you already have Docker + the NVIDIA Container Toolkit:
 
 ```bash
-# Download model (~17GB). Uses the Python API; the hf/huggingface-cli console
-# script is often not on PATH after a pip --user install.
+# Download model (~17GB) via the Python API (the hf console script is often
+# not on PATH after a pip --user install).
 mkdir -p models
 pip install -q huggingface-hub
 python3 -c "from huggingface_hub import hf_hub_download; \
 hf_hub_download('unsloth/Qwen3.6-35B-A3B-MTP-GGUF', \
 'Qwen3.6-35B-A3B-UD-Q3_K_XL.gguf', local_dir='models')"
 
-# Start
 docker compose up -d --build
 ```
 
 ## Configuration
 
-### llama-server flags (in `docker-compose.yml`)
+### llama-server flags (`docker-compose.yml`)
 
 | Flag | Value | Why |
 |------|-------|-----|
-| `--ctx-size` | 16384 | Balance between input capacity and VRAM |
+| `--ctx-size` | 16384 | Balance input capacity vs VRAM |
 | `-fitt` | 512 | Auto-fit threshold, prevents OOM with MTP |
 | `--spec-type draft-mtp` | — | MTP speculative decoding — load-bearing on L4 (+39% at Q3; removing it drops 76→54 tok/s) |
-| `--spec-draft-n-max` | 3 | Draft 3 tokens per step (build default; best on L4) |
+| `--spec-draft-n-max` | 3 | Draft 3 tokens per step (best on L4) |
 | `--spec-draft-p-min` | 0.1 | Draft only reasonably-confident positions |
 | `--cache-reuse` | 256 | KV cache reuse across rounds (40x prefill speedup on same doc) |
 | `--flash-attn` | 1 | Flash attention |
 | `--no-mmap` | — | Required when auto-fit offloads tensors to CPU |
 | `--n-predict` | 8192 | Max generation length |
 
-### Extraction parameters (in UI)
+### Extraction parameters (UI)
 
 | Parameter | Default | What |
 |-----------|---------|------|
-| Rounds | 3 | Extraction passes with different seeds |
-| Dedup model | jina-v5-nano | Runs on CPU, 23 texts/sec |
-| Dedup field | Triple (S+P+O) | Compare subject+predicate+object |
+| Rounds | 1 | Extraction passes per document (more seeds = more coverage) |
+| Dedup model | jina-v5-nano | On by default, runs on CPU |
+| Dedup field | Triple (S+P+O) | What to embed for similarity |
 | Dedup threshold | 0.90 | Cosine similarity cutoff |
 
-### Key findings from benchmarking
+## Throughput findings (benchmarked)
 
 Full methodology, per-experiment logs, and 5-repeat confirmations are in
-[`autoresearch/`](autoresearch/) (REPORT.md + strategies.md + progress.png).
-Headline numbers (decode tok/s, fixed-seed, on the v5-omni article):
+[`autoresearch/`](autoresearch/REPORT.md). Highlights:
 
-- **Q3_K_XL quant is the biggest lever: +34%** (56.5 → 75.9 tok/s) vs Q4_K_XL,
-  with KI count, coverage, and groundedness all preserved. Decode is bandwidth-
-  bound, so fewer bits/weight ≈ proportionally faster. ~3.5bpw k-quant is the
-  quality floor — lower (i-quants, Q2) loses facts or fabricates evidence.
-- **MTP n=3** (build default) + **`--spec-draft-p-min 0.1`** is the decode peak;
-  n≥4 is slower. MTP is essential here (+39% at Q3) — the opposite of fast
-  consumer GPUs where spec-decode is net-negative for this MoE; on the bandwidth-
-  starved L4 its forward-pass amortization wins. MTP × quant are synergistic.
+- **Q3_K_XL over Q4_K_XL**: +34% decode, no measurable quality loss on this task.
+  Decode is bandwidth-bound, so fewer bits/weight ≈ proportionally faster.
+  ~3.5bpw is the quality floor — lower (i-quants, Q2) loses or fabricates facts.
+- **MTP n=3** + **`--spec-draft-p-min 0.1`** is the decode peak; n≥4 is slower.
+  MTP is essential here (+39% at Q3) — the opposite of fast consumer GPUs where
+  spec-decode is net-negative for this MoE; on the bandwidth-starved L4 its
+  forward-pass amortization wins.
 - **nothink mode** required: thinking wastes ctx on reasoning tokens.
 - **JSON schema constraint**: ~0 decode overhead, guarantees valid output.
 - **KV cache reuse**: 40x prefill speedup on same-document subsequent rounds.
@@ -114,18 +141,19 @@ Headline numbers (decode tok/s, fixed-seed, on the v5-omni article):
 ## File structure
 
 ```
-├── app.py                  # FastAPI app (extraction logic + UI)
-├── Dockerfile              # Container for ki-extractor
-├── docker-compose.yml      # Both services
-├── .env.example            # Environment variables template
+├── app.py                  # FastAPI app: extraction + UI + API
+├── jobs.py                 # single-slot job scheduler (queue/preempt/backfill/persist)
+├── Dockerfile              # app container
+├── docker-compose.yml      # both services + data volume
+├── .env.example            # environment variables template
+├── jina-corpus.zip         # bundled default zip dataset (Jina blog articles)
 ├── templates/
 │   └── chat_template.jinja # Qwen3.6 chat template (nothink mode)
 ├── scripts/
-│   └── setup.sh            # One-shot GCP L4 setup
-├── autoresearch/           # Throughput optimization dataroom (harness, experiments, REPORT.md)
-├── models/                 # Model files (gitignored, ~17GB)
-└── assets/
-    └── demo.gif
+│   └── setup.sh            # one-shot GCP L4 setup
+├── autoresearch/           # throughput optimization dataroom (harness, experiments, REPORT.md)
+├── data/                   # persisted jobs (gitignored, Docker volume)
+└── models/                 # model files (gitignored, ~17GB)
 ```
 
 ## License

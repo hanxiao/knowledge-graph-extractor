@@ -752,6 +752,8 @@ nav{border-bottom:1px solid var(--border);padding:0 18px;display:flex;align-item
 nav .logo{font-weight:700;font-size:14px;font-family:var(--mono);color:var(--black);letter-spacing:-.3px}
 nav .sep{color:var(--text3)}
 nav .tag{font-size:11px;color:var(--text3);font-family:var(--mono)}
+nav .gh{margin-left:auto;color:var(--text2);display:flex;align-items:center;transition:color .12s}
+nav .gh:hover{color:var(--text)}
 
 .layout{display:flex;height:calc(100vh - 42px)}
 .sidebar{width:330px;min-width:330px;border-right:1px solid var(--border);padding:16px;overflow-y:auto;display:flex;flex-direction:column;gap:14px;background:var(--bg2)}
@@ -863,6 +865,9 @@ input[type="range"]:disabled::-webkit-slider-thumb{background:var(--text3)}
   <div class="logo">KG</div>
   <span class="sep">|</span>
   <span class="tag">qwen3.6-35b-a3b-mtp / nvidia l4 24gb</span>
+  <a class="gh" href="https://github.com/hanxiao/qwen-3.6-35b-a3b-mtp-l4-knowledge-graph" target="_blank" rel="noopener" title="Source on GitHub" aria-label="GitHub">
+    <svg viewBox="0 0 16 16" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+  </a>
 </nav>
 
 <div class="layout">
@@ -965,24 +970,27 @@ input[type="range"]:disabled::-webkit-slider-thumb{background:var(--text3)}
 </div>
 
 <script>
+// API base: works at the L4 root ("/") and behind a reverse proxy subpath
+// (e.g. hanxiao.io/knowledge-graph). Derived from where index.html was served.
+const API_BASE=(location.pathname.replace(/\/+$/,'')||'');
 let currentTab='url', defaultPrompt='', zipFileObj=null;
 let jsonlLines=[];           // raw jsonl strings for download
 let graphNodes=new Map();    // id -> node
 let graphLinks=[];           // link objects, each carries .fact
 let Graph=null;
 
-fetch('/api/default-prompt').then(r=>r.json()).then(d=>{
+fetch(API_BASE+'/api/default-prompt').then(r=>r.json()).then(d=>{
   defaultPrompt=d.prompt;
   document.getElementById('prompt-edit').value=d.prompt;
 });
 
 // Preload the bundled default corpus zip so the Zip tab works out of the box.
 let defaultZipLoaded=false;
-fetch('/api/default-zip-info').then(r=>r.json()).then(d=>{
+fetch(API_BASE+'/api/default-zip-info').then(r=>r.json()).then(d=>{
   if(!d.available)return;
   const zn=document.getElementById('zip-name');
   zn.textContent='loading '+d.name+' ('+d.files+' files, '+d.size_mb+' MB)...';
-  fetch('/api/default-zip').then(r=>r.blob()).then(b=>{
+  fetch(API_BASE+'/api/default-zip').then(r=>r.blob()).then(b=>{
     const f=new File([b],d.name,{type:'application/zip'});
     zipFileObj=f;defaultZipLoaded=true;
     zn.textContent=d.name+' · '+d.files+' files · '+d.size_mb+' MB (default)';
@@ -1197,13 +1205,13 @@ async function extract(){
       fd.append('file',zipFileObj);
       fd.append('k',k);fd.append('prompt',prompt);
       fd.append('dedup_threshold',threshold);fd.append('dedup_field',dedupField);fd.append('dedup_model',dedupModel);
-      const r=await fetch('/api/jobs-zip',{method:'POST',body:fd});
+      const r=await fetch(API_BASE+'/api/jobs-zip',{method:'POST',body:fd});
       job_id=(await r.json()).job_id;
     }else{
       const payload={k,prompt,dedup_threshold:threshold,dedup_field:dedupField,dedup_model:dedupModel};
       if(currentTab==='url')payload.url=document.getElementById('url').value;
       else payload.text=document.getElementById('text-paste').value;
-      const r=await fetch('/api/jobs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      const r=await fetch(API_BASE+'/api/jobs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
       job_id=(await r.json()).job_id;
     }
     document.getElementById('status-area').innerHTML='<div class="status-msg"><span class="spinner"></span>Job '+job_id.slice(0,6)+' queued</div>';
@@ -1226,7 +1234,7 @@ async function viewJob(job_id){
   document.getElementById('files-section').classList.add('hidden');
   const ac=new AbortController(); eventAbort=ac;
   let resp;
-  try{ resp=await fetch('/api/jobs/'+job_id+'/events',{signal:ac.signal}); }
+  try{ resp=await fetch(API_BASE+'/api/jobs/'+job_id+'/events',{signal:ac.signal}); }
   catch(e){ return; }
   const reader=resp.body.getReader(); const dec=new TextDecoder(); let buf='';
   let fileNames=[];
@@ -1286,7 +1294,7 @@ function renderJobStatusBadge(m){
 
 // ---------- Jobs panel ----------
 async function refreshJobs(){
-  let data;try{ data=await (await fetch('/api/jobs')).json(); }catch(e){ return; }
+  let data;try{ data=await (await fetch(API_BASE+'/api/jobs')).json(); }catch(e){ return; }
   const jobs=data.jobs||[];
   const wrap=document.getElementById('jobs-list');
   if(!jobs.length){ document.getElementById('jobs-section').classList.add('hidden'); return; }
@@ -1308,9 +1316,9 @@ async function refreshJobs(){
   }).join('');
 }
 function highlightJob(id){viewingJob=id;refreshJobs();}
-async function pauseJob(id){await fetch('/api/jobs/'+id+'/pause',{method:'POST'});refreshJobs();}
-async function resumeJob(id){await fetch('/api/jobs/'+id+'/resume',{method:'POST'});refreshJobs();if(id===viewingJob)viewJob(id);}
-async function delJob(id){if(!confirm('Delete this job?'))return;await fetch('/api/jobs/'+id,{method:'DELETE'});if(id===viewingJob){viewingJob=null;}refreshJobs();}
+async function pauseJob(id){await fetch(API_BASE+'/api/jobs/'+id+'/pause',{method:'POST'});refreshJobs();}
+async function resumeJob(id){await fetch(API_BASE+'/api/jobs/'+id+'/resume',{method:'POST'});refreshJobs();if(id===viewingJob)viewJob(id);}
+async function delJob(id){if(!confirm('Delete this job?'))return;await fetch(API_BASE+'/api/jobs/'+id,{method:'DELETE'});if(id===viewingJob){viewingJob=null;}refreshJobs();}
 
 function downloadJsonl(){
   const blob=new Blob([jsonlLines.join('\n')+'\n'],{type:'application/x-ndjson'});
