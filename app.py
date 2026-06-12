@@ -737,6 +737,10 @@ async def api_resume_job(job_id: str):
 
 @app.delete("/api/jobs/{job_id}")
 async def api_delete_job(job_id: str):
+    # Guard: never delete a job that produced extracted data (a good result).
+    m = J.get_job(job_id)
+    if m and (m.get("unique_facts") or 0) > 0:
+        return {"error": "job has extracted data and cannot be deleted"}
     return await J.delete_job(job_id)
 
 
@@ -1557,7 +1561,11 @@ async function refreshJobs(){
     const prog=j.num_files?(' · '+(j.files_done||0)+'/'+j.num_files+' files'):'';
     const canPause=(j.status==='running'||j.status==='queued');
     const canResume=(j.status==='paused'||j.status==='held'||j.status==='failed');
-    let btns='<button class="jb-x" onclick="event.stopPropagation();delJob(\''+j.job_id+'\')" title="delete">✕</button>';
+    // Only allow deleting jobs with NO extracted data (empty/failed). A job that
+    // produced edges is kept; users can't delete a good result from the UI.
+    const canDelete=((j.unique_facts||0)===0);
+    let btns='';
+    if(canDelete)btns+='<button class="jb-x" onclick="event.stopPropagation();delJob(\''+j.job_id+'\')" title="delete">✕</button>';
     if(canPause)btns='<button class="jb-x" onclick="event.stopPropagation();pauseJob(\''+j.job_id+'\')" title="pause">⏸</button>'+btns;
     if(canResume)btns='<button class="jb-x" onclick="event.stopPropagation();resumeJob(\''+j.job_id+'\')" title="resume">▶</button>'+btns;
     return '<div class="jb'+active+'" onclick="viewJob(\''+j.job_id+'\');highlightJob(\''+j.job_id+'\')">'
