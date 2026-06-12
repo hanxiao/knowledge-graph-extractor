@@ -1468,14 +1468,21 @@ function toggleLongestPath(){
   _pathNodes=new Set(best.nodes);
   _pathLinks=new Set(best.links);
   tEl.classList.add('on');
-  // Render the chain at top: node -> [predicate] -> node ...
+  // Render the chain at top strictly in edge direction. Each hop is drawn from
+  // the link's OWN subject -> predicate -> object, so the displayed order can
+  // never disagree with the edge direction (subject is always the source).
   const labelOf=id=>{const n=graphNodes.get(id);return n?(n.label||n.id):id;};
   let html='<span class="ptitle">longest path · '+best.nodes.length+' nodes</span>';
-  for(let i=0;i<best.nodes.length;i++){
-    html+='<span class="pn">'+esc(labelOf(best.nodes[i]))+'</span>';
-    if(i<best.links.length){
+  if(!best.links.length){
+    html+='<span class="pn">'+esc(labelOf(best.nodes[0]))+'</span>';
+  }else{
+    // first node label
+    const f0=best.links[0].fact||{};
+    html+='<span class="pn">'+esc(f0.subject||labelOf(best.nodes[0]))+'</span>';
+    for(let i=0;i<best.links.length;i++){
       const f=best.links[i].fact||{};
       html+='<span class="parrow">→</span><span class="pe">'+esc(f.predicate||'')+'</span><span class="parrow">→</span>';
+      html+='<span class="pn">'+esc(f.object||labelOf(best.nodes[i+1]))+'</span>';
     }
   }
   bar.innerHTML=html;bar.classList.remove('hidden');
