@@ -592,6 +592,8 @@ async def run_job(job_id: str):
                             emit({"type": "warn", "file": fname, "message": file_llm_error})
                         elif ev.get("type") in ("metrics", "round_start"):
                             emit(ev)
+                # persist after each chunk so the live counter advances on long docs
+                persist_progress("running")
             # A single-document job (url/text) with an LLM error and no facts is a
             # real failure -- surface it instead of a fake 'done, 0 facts'.
             if file_llm_error and meta.get("source_kind") != "zip" and file_facts == 0:
