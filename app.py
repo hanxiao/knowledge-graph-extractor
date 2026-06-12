@@ -723,7 +723,7 @@ async def serve_asset(name: str):
     path = os.path.join(ASSETS_DIR, safe)
     if not os.path.isfile(path):
         return HTMLResponse("not found", status_code=404)
-    return FileResponse(path)
+    return FileResponse(path, headers={"Access-Control-Allow-Origin": "*"})
 
 @app.get("/favicon.ico")
 async def favicon_ico():
