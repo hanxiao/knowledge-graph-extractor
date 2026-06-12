@@ -1665,7 +1665,10 @@ function prefillFromJob(m){
   if(m.dedup_field){document.getElementById('dedup-field').value=m.dedup_field;}
   if(m.dedup_threshold!=null){const s=document.getElementById('dedup-slider');s.value=m.dedup_threshold;document.getElementById('dedup-val').textContent=(+m.dedup_threshold).toFixed(2);}
   if(m.prompt){document.getElementById('prompt-edit').value=m.prompt;}
-  // restore source into the matching tab
+  // restore source into the matching tab. Suppressed during first-load auto-select
+  // so the New Job box defaults to the URL tab (don't drop users straight onto a
+  // prefilled zip tab where they might blindly hit Extract).
+  if(suppressTabSwitch)return;
   if(m.source_kind==='url' && m.source_name){switchTab('url');document.getElementById('url').value=m.source_name;}
   else if(m.source_kind==='text'){switchTab('text');}
   else if(m.source_kind==='zip'){switchTab('zip');}
@@ -1717,6 +1720,7 @@ document.getElementById('url').addEventListener('keydown',e=>{if(e.key==='Enter'
 window.addEventListener('resize',()=>{if(Graph){const m=document.querySelector('.main');Graph.width(m.clientWidth).height(m.clientHeight);zoomFit();}});
 
 let autoPathPending=false;  // set during first-load auto-select to flip longest path on
+let suppressTabSwitch=false; // during first-load auto-select, keep New Job on the URL tab
 
 // On first visit (no job being viewed yet), auto-select the jina-corpus job and
 // turn longest path ON so the landing page shows a populated, highlighted graph.
@@ -1735,9 +1739,13 @@ async function initDefaultView(){
       || jobs[0];
     if(!pick)return;
     autoPathPending=true;
-    await viewJob(pick.job_id);
+    suppressTabSwitch=true;
+    // viewJob opens a long-lived SSE stream (won't resolve promptly for a done
+    // job), so clear the suppress flag on a timer rather than after the await.
+    setTimeout(()=>{suppressTabSwitch=false;},4000);
     highlightJob(pick.job_id);
-  }catch(e){}
+    viewJob(pick.job_id);
+  }catch(e){suppressTabSwitch=false;}
 }
 
 refreshJobs();
