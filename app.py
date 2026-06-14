@@ -1750,7 +1750,10 @@ async function initDefaultView(){
 
 refreshJobs();
 setInterval(refreshJobs,3000);
-initDefaultView();
+// initDefaultView() disabled: don't auto-load the jina-corpus job on first visit.
+// Auto-opening that large persisted graph caused the landing page to thrash
+// (repeated load/fail/reload). Users now land on an empty graph + URL tab and
+// pick a job manually.
 </script>
 </body>
 </html>"""
